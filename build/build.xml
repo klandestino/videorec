@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<project name="Default" default="compile">
+	<property name="flex.mxmlc" value="mxmlc" />
+	<property name="build.dir" value="." />
+	<property name="deploy.dir" value="../bin" />
+	<property name="src.dir" value="../src" />
+	<property name="klandestino.src.dir" value="../../../../general/src" />
+	<target name="compile">
+		<exec executable="${flex.mxmlc}" failonerror="true">
+			<arg line="-source-path '${klandestino.src.dir}'" />
+			<arg line="-default-background-color 0xffffff" />
+			<arg line="-compiler.debug" />
+			<arg line="-default-frame-rate=24" />
+			<arg line="-use-network=true" />
+			<arg line="-output '${deploy.dir}/videorec.swf'" />
+			<arg line="${src.dir}/Videorec.as" />
+		</exec>
+	</target>
+</project>
