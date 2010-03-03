@@ -1,9 +1,5 @@
 package {
 
-	import com.klandestino.debug.Debug;
-	import com.klandestino.debug.loggers.NullLogger;
-	import com.klandestino.debug.loggers.TraceLogger;
-	import com.klandestino.utils.StringUtil;
 	import flash.display.DisplayObject;
 	import flash.display.Loader;
 	import flash.display.Sprite;
@@ -20,14 +16,25 @@ package {
 	import flash.events.TimerEvent;
 	import flash.filters.BlurFilter;
 	import flash.filters.BitmapFilterQuality;
+	import flash.filters.GlowFilter;
 	import flash.media.Camera;
+	import flash.media.Microphone;
 	import flash.media.Video;
 	import flash.net.NetConnection;
 	import flash.net.NetStream;
 	import flash.net.URLRequest;
 	import flash.text.TextField;
 	import flash.text.TextFieldAutoSize;
+	import flash.text.TextFormat;
 	import flash.utils.Timer;
+	import flash.utils.setTimeout;
+	import net.hires.debug.Stats;
+	import se.klandestino.flash.debug.Debug;
+	import se.klandestino.flash.debug.loggers.NullLogger;
+	import se.klandestino.flash.debug.loggers.TraceLogger;
+	import se.klandestino.flash.events.NetStreamClientEvent;
+	import se.klandestino.flash.media.NetStreamClient;
+	import se.klandestino.flash.utils.StringUtil;
 
 	/**
 	 *	Sprite sub class description.
@@ -44,9 +51,30 @@ package {
 		// CLASS CONSTANTS
 		//--------------------------------------
 
+		public static const ERROR_BUTTON_BOLD:Boolean = true;
+		public static const ERROR_BUTTON_COLOR:int = 0x0000FF;
+		public static const ERROR_BUTTON_FONT:String = 'Helvetica';
+		public static const ERROR_BUTTON_SIZE:int = 14;
+		public static const ERROR_BUTTON_TEXT:String = 'reset';
+		public static const ERROR_BUTTON_UNDERLINE:Boolean = true;
+
+		public static const ERROR_MSG_BOLD:Boolean = true;
+		public static const ERROR_MSG_COLOR:int = 0xFF0000;
+		public static const ERROR_MSG_FONT:String = 'Helvetica';
+		public static const ERROR_MSG_SIZE:int = 18;
+
 		public static const MSG_NO_CAMERA:String = 'No camera connected or available!';
 		public static const MSG_NO_CONNECTION:String = 'Server connection failed!';
+		public static const MSG_NO_MICROPHONE:String = 'No microphone connected or available!';
+		public static const MSG_LOST_CONNECTION:String = 'You lost the connection to the server!';
 		public static const MSG_SECURITY_ERROR:String = 'Server connection failed with a security error!';
+		public static const MSG_STREAM_IO_ERROR:String = 'An input/output error occured while working with the network stream!';
+
+		public static const SCREEN_INFO:int = 1;
+		public static const SCREEN_PLAY:int = 2;
+		public static const SCREEN_DONE:int = 3;
+
+		public static const STREAM_BUFFER:int = 5;
 
 		//--------------------------------------
 		//  CONSTRUCTOR
@@ -77,23 +105,43 @@ package {
 		private var blur:Number = 20;
 		private var buttonPlay:Object;
 		private var buttonRecord:Object;
+		private var buttonStop:Object;
 		private var buttonUpload:Object;
 		private var camera:Camera;
 		private var connection:NetConnection;
-		private var connectionURL:String = 'rtmp://gts.dartmotif.com/camera_recorder/testpotter';
+		private var connectionURL:String = 'rtmp://88.80.16.137/simpleVideoRec';
 		private var currentInfoScreen:Object;
 		private var currentInfoScreenNum:int = 0;
 		private var infoScreen1:Object;
 		private var infoScreen2:Object;
 		private var infoScreen3:Object;
 		private var loaderMovie:Sprite;
-		private var recordTime:int = 10;
+		private var microphone:Microphone;
+		private var recordTime:int = 120;
 		private var recordTimeLeft:int = 0;
 		private var recordTimer:Timer;
 		private var sessionID:String = String (Math.random ()).split ('.')[1];
+		private var stats:Stats;
 		private var statusText:TextField;
+		private var statusTextFormat:TextFormat;
+		private var statusButton:Sprite;
+		private var statusButtonText:TextField;
+		private var statusButtonFormat:TextFormat;
 		private var stream:NetStream;
+		private var streamActivePlayback:Boolean = false;
+		private var streamActiveRecording:Boolean = false;
+		private var streamBufferFull:Boolean = false;
+		private var streamClient:NetStreamClient;
+		private var streamDuration:Number = 0;
+		private var streamStoppedPlayback:Boolean = true;
+		private var timerStatusBold:Boolean = true;
+		private var timerStatusColor:int = 0xFFFFFF;
+		private var timerStatusFont:String = 'Helvetica';
+		private var timerStatusGlow:Boolean = true;
+		private var timerStatusGlowColor:int = 0x000000;
 		private var timerStatusText:TextField;
+		private var timerStatusTextFormat:TextFormat;
+		private var timerStatusSize:int = 18;
 		private var video:Video;
 
 		//--------------------------------------
@@ -105,12 +153,28 @@ package {
 		//--------------------------------------
 
 		public function play ():void {
-			Debug.debug ('Playing recorded stream');
-			this.removeLoaderMovie ();
+			Debug.debug ('Trying to play recorded stream ' + this.sessionID);
+			this.setupNetStream ();
 			this.removeInfoScreen ();
-			this.video.attachNetStream (this.stream);
-			this.stream.play (this.connectionURL + '/' + this.sessionID + '.flv');
-			this.stage.dispatchEvent (new Event (Event.RESIZE));
+			this.setupLoaderMovie ();
+			this.stream.bufferTime = Videorec.STREAM_BUFFER;
+			this.stream.receiveVideo (true);
+			this.stream.receiveAudio (true);
+
+			var playSuccess:Boolean = false;
+			try {
+				this.stream.play (this.sessionID);
+				playSuccess = true;
+			} catch (error:Error) {
+				//
+			}
+
+			if (!(playSuccess)) {
+				Debug.error ('Could not play videostream');
+				this.stop ();
+				this.sendError (Videorec.MSG_LOST_CONNECTION);
+				return;
+			}
 		}
 
 		public function reset ():void {
@@ -118,39 +182,59 @@ package {
 			this.removeLoaderMovie ();
 			this.removeTimer ();
 			this.removeStatusMessage ();
+			this.removeStopButton ();
 			this.setupCamera ();
-			this.setFilters ();
-			this.setupInfoScreen (1);
-			this.stage.dispatchEvent (new Event (Event.RESIZE));
+			this.setupVideoFilters ();
+			this.setupInfoScreen (Videorec.SCREEN_INFO);
 		}
 
 		public function record ():void {
-			Debug.debug ('Start recording');
-			this.removeLoaderMovie ();
-			this.video.filters = null;
+			Debug.debug ('Tryint to start recording ' + this.sessionID);
+			this.setupNetStream ();
+			this.streamDuration = 0;
 			this.removeInfoScreen ();
-			this.camera.setLoopback (true);
-			//this.stream.attachCamera (this.camera);
-			//this.stream.publish (this.sessionID, 'record');
-			this.setupTimer ();
-			this.stage.dispatchEvent (new Event (Event.RESIZE));
+			this.setupLoaderMovie ();
+
+			var recordSuccess:Boolean = false;
+			try {
+				this.stream.publish (this.sessionID, 'record');
+				recordSuccess = true;
+			} catch (error:Error) {
+				//
+			}
+
+			if (!(recordSuccess)) {
+				Debug.error ('Could not record videostream')
+				this.stop ();
+				this.recordStop ();
+				this.sendError (Videorec.MSG_LOST_CONNECTION);
+				return;
+			}
 		}
 
 		public function stop ():void {
-			Debug.debug ('Stopped recording');
-			this.removeLoaderMovie ();
-			//this.stream.close ();
-			this.setFilters ();
+			Debug.debug ('Trying to stop recording or playing ' + this.sessionID);
+			this.removeTimer ();
+			this.removeStopButton ();
+			this.setupLoaderMovie ();
+			this.stream.receiveVideo (false);
+			this.stream.receiveAudio (false);
+			this.stream.close ();
+			this.removeNetStream ();
+			this.setupVideoFilters ();
 			this.camera.setLoopback (false);
-			this.setupInfoScreen (2);
-			this.stage.dispatchEvent (new Event (Event.RESIZE));
+			this.video.attachNetStream (null);
+			this.video.attachCamera (this.camera);
+
+			if (!(this.streamActiveRecording)) {
+				this.playStop ();
+			}
 		}
 
 		public function upload ():void {
 			Debug.debug ('Uploading recorded material');
 			this.removeLoaderMovie ();
-			this.setupInfoScreen (3);
-			this.stage.dispatchEvent (new Event (Event.RESIZE));
+			this.setupInfoScreen (Videorec.SCREEN_DONE);
 		}
 
 		//--------------------------------------
@@ -162,9 +246,11 @@ package {
 			this.setupVideoSize ();
 			this.setupLoaderMoviePositions ();
 			this.setupStatusMessagePositions ();
+			this.setupStatusButtonPositions ();
 			this.setupTimerPositions ();
 			this.setupInfoScreensPositions ();
 			this.setupButtonsPositions ();
+			this.setupStopButtonPositions ();
 		}
 
 		private function loaderCompleteHandler (event:Event):void {
@@ -182,6 +268,14 @@ package {
 			try {
 				if (this.buttonRecord.loader.contentLoaderInfo === event.target) {
 					type = 'record';
+				}
+			} catch (error:Error) {
+				//
+			}
+
+			try {
+				if (this.buttonStop.loader.contentLoaderInfo === event.target) {
+					type = 'stop';
 				}
 			} catch (error:Error) {
 				//
@@ -236,6 +330,14 @@ package {
 					this.buttonRecord.loader = null;
 					this.addChild (this.buttonRecord.sprite);
 					break;
+				case 'stop':
+					Debug.debug ('Stop button loaded');
+					this.buttonStop.sprite = new Sprite ();
+					this.buttonStop.sprite.visible = false;
+					this.buttonStop.sprite.addChild (this.buttonStop.loader.contentLoaderInfo.content);
+					this.buttonStop.loader = null;
+					this.addChild (this.buttonStop.sprite);
+					break;
 				case 'upload':
 					Debug.debug ('Upload button loaded');
 					this.buttonUpload.sprite = new Sprite ();
@@ -271,12 +373,11 @@ package {
 			}
 
 			if (
-				//this.stream != null &&
 				this.buttonRecord.sprite != null &&
 				(
 					this.infoScreen1.sprite != null
 					|| (
-						//this.stream != null &&
+						this.stream != null &&
 						this.infoScreen1.loader == null &&
 						this.infoScreen1.sprite == null
 					)
@@ -308,6 +409,11 @@ package {
 			this.record ();
 		}
 
+		private function buttonStopClickHandler (event:MouseEvent):void {
+			Debug.debug ('Stop button clicked');
+			this.stop ();
+		}
+
 		private function buttonUploadClickHandler (event:MouseEvent):void {
 			Debug.debug ('Upload button clicked');
 			this.upload ();
@@ -315,58 +421,192 @@ package {
 
 		private function recordTimerUpdateHandler (event:TimerEvent):void {
 			this.recordTimeLeft--;
-			var time:int = this.recordTimeLeft;
-			var min:int = Math.floor (time / 60);
-			var sec:int = time - (min * 60);
-			this.timerStatusText.text = (min < 10 ? '0' : '') + min + ':' + (sec < 10 ? '0' : '') + sec;
-			this.setupTimerPositions ();
+			this.updateTimer (this.recordTimeLeft);
 		}
 
 		private function recordTimerCompleteHandler (event:TimerEvent):void {
 			Debug.debug ('Recording timer completed');
-			this.removeTimer ();
 			this.stop ();
 		}
 
 		private function connectionNetStatusHandler (event:NetStatusEvent): void {
+			Debug.debug ('NetConnection status: ' + event.info.code);
+
 			switch (event.info.code) {
 				case 'NetConnection.Connect.Success':
-					Debug.debug ('Succeded with net connection');
-					this.setupNetStream ();
+					if (
+						this.buttonRecord.sprite != null &&
+						(
+							this.infoScreen1.sprite != null ||
+							(
+								this.infoScreen1.loader == null &&
+								this.infoScreen1.sprite == null
+							)
+						)
+					) {
+						this.reset ();
+					}
 					break;
 				case 'NetConnection.Connect.Failed':
-					Debug.fatal ('Net connection failed');
-					this.sendStatusMessage (Videorec.MSG_NO_CONNECTION);
+					this.sendError (Videorec.MSG_NO_CONNECTION);
+					break;
+				case 'NetConnection.Connect.Closed':
+					this.sendError (Videorec.MSG_LOST_CONNECTION);
 					break;
 			}
 		}
 
 		private function connectionSecurityErrorHandler (event:SecurityErrorEvent): void {
-			this.sendStatusMessage (Videorec.MSG_SECURITY_ERROR);
+			Debug.error ('NetConnection security error');
+			this.sendError (Videorec.MSG_SECURITY_ERROR);
+		}
+
+		private function streamNetStatusHandler (event:NetStatusEvent):void {
+			Debug.debug ('NetStream status: ' + event.info.code);
+
+			switch (event.info.code) {
+				case 'NetStream.Buffer.Empty':
+					if (this.streamActivePlayback) {
+						if (this.streamStoppedPlayback) {
+							this.streamActivePlayback = false;
+							Debug.debug ('NetStream stopped streaming and buffer completed');
+							this.stop ();
+						} else if (!(this.streamBufferFull)) {
+							this.setupBuffering ();
+						} else {
+							Debug.debug ('NetStream buffer completed but the stream has not stopped yet');
+						}
+					}
+					break;
+				case 'NetStream.Buffer.Full':
+					this.removeBuffering ();
+					this.streamBufferFull = true;
+					break;
+				case 'NetStream.Play.Start':
+					this.streamActivePlayback = true;
+					this.streamStoppedPlayback = false;
+					this.streamBufferFull = false;
+					this.playStart ();
+					break;
+				case 'NetStream.Play.Stop':
+					this.streamStoppedPlayback = true;
+					if (this.streamDuration <= Videorec.STREAM_BUFFER) {
+						this.streamActivePlayback = false;
+						Debug.debug ('NetStream duration is shorter than buffer, stopping playback');
+						this.stop ();
+					}
+					break;
+				case 'NetStream.Record.Start':
+					this.streamActiveRecording = true;
+					this.recordStart ();
+					break;
+				case 'NetStream.Record.Stop':
+					this.streamActiveRecording = false;
+					this.recordStop ();
+					break;
+			}
+		}
+
+		private function streamIoErrorHandler (event:IOErrorEvent):void {
+			Debug.error ('NetStream input/output error');
+			this.sendError (Videorec.MSG_STREAM_IO_ERROR);
+		}
+
+		private function streamClientStatusHandler (event:NetStreamClientEvent):void {
+			Debug.debug ('NetStream client status: ' + event.info.code);
+		}
+
+		private function streamClientMetaHandler (event:NetStreamClientEvent):void {
+			Debug.debug ('NetStream meta: duration=' + event.info.duration + ' width=' + event.info.width + ' height=' + event.info.height + ' framerate=' + event.info.framerate);
+			this.streamDuration = parseFloat (event.info.duration);
+		}
+
+		private function statusButtonClickHandler (event:MouseEvent):void {
+			this.init ();
 		}
 
 		//--------------------------------------
 		//  PRIVATE & PROTECTED INSTANCE METHODS
 		//--------------------------------------
 
-		private function init (event:Event):void {
+		private function init (event:Event = null):void {
 			Debug.debug ('Initializing');
 			this.stage.removeEventListener (Event.RESIZE, this.init);
+			this.stage.removeEventListener (Event.RESIZE, this.stageResizeHandler);
 			this.stage.addEventListener (Event.RESIZE, this.stageResizeHandler, false, 0, true);
 
-			this.buttonPlay = new Object ();
-			this.buttonRecord = new Object ();
-			this.buttonUpload = new Object ();
-			this.infoScreen1 = new Object ();
-			this.infoScreen2 = new Object ();
-			this.infoScreen3 = new Object ();
+			if (this.buttonPlay == null) {
+				this.buttonPlay = new Object ();
+			}
 
+			if (this.buttonRecord == null) {
+				this.buttonRecord = new Object ();
+			}
+
+			if (this.buttonStop == null) {
+				this.buttonStop = new Object ();
+			}
+
+			if (this.buttonUpload == null) {
+				this.buttonUpload = new Object ();
+			}
+
+			if (this.infoScreen1 == null) {
+				this.infoScreen1 = new Object ();
+			}
+
+			if (this.infoScreen2 == null) {
+				this.infoScreen2 = new Object ();
+			}
+
+			if (this.infoScreen3 == null) {
+				this.infoScreen3 = new Object ();
+			}
+
+			this.removeStatusMessage ();
 			this.getParams ();
 			this.setupCamera ();
+			this.setupVideoFilters ();
 			this.setupLoaderMovie ();
 			this.setupImages ();
-			//this.setupNetConnection ();
+			this.setupNetConnection ();
+
+			if (this.stats == null) {
+				this.stats = new Stats ();
+				this.addChild (this.stats);
+			}
+		}
+
+		private function playStart ():void {
+			Debug.debug ('Start playing recorded stream ' + this.sessionID);
+			this.removeLoaderMovie ();
+			this.setupStopButton ();
+			this.removeVideoFilters ();
+			this.video.attachCamera (null);
+			this.video.attachNetStream (this.stream);
+		}
+
+		private function playStop ():void {
+			Debug.debug ('Stopped playing recorded stream ' + this.sessionID);
+			this.removeLoaderMovie ();
+			this.setupInfoScreen (Videorec.SCREEN_PLAY);
+		}
+
+		private function recordStart ():void {
+			Debug.debug ('Start recording ' + this.sessionID);
+			this.removeLoaderMovie ();
+			this.removeVideoFilters ();
+			this.setupStopButton ();
+			this.camera.setLoopback (true);
+			this.stream.attachCamera (this.camera);
+			this.stream.attachAudio (this.microphone);
 			this.setupTimer ();
+		}
+
+		private function recordStop ():void {
+			Debug.debug ('Stopped recording ' + this.sessionID);
+			this.removeLoaderMovie ();
+			this.setupInfoScreen (Videorec.SCREEN_PLAY);
 		}
 
 		/**
@@ -376,6 +616,9 @@ package {
 		*		<li>sessionid – session identification</li>
 		*		<li>connectionurl – URL to rtmp-server</li>
 		*		<li>recordtime – time used to record defined in seconds</li>
+		*		<li>recordtimerfont – secord timer font</li>
+		*		<li>recordtimersize – secord timer font size</li>
+		*		<li>recordtimerbold – secord timer font bold (true/false)</li> 
 		*		<li>recordsrc – record button source</li>
 		*		<li>recordx – record button x coordinates</li>
 		*		<li>recordy – record button y coordinates</li>
@@ -385,6 +628,9 @@ package {
 		*		<li>uploadsrc – upload button source</li>
 		*		<li>uploadx – upload button x coordinates</li>
 		*		<li>uploady – upload button y coordinates</li>
+		*		<li>stopsrc – stop button source</li>
+		*		<li>stopx – stop button x coordinates</li>
+		*		<li>stopy – stop button y coordinates</li>
 		*		<li>info1src – info 1 screen source</li>
 		*		<li>info1x – info 1 x coordinates</li>
 		*		<li>info1y – info 1 y coordinates</li>
@@ -460,6 +706,71 @@ package {
 				Debug.warn ('Record time was not an integer ' + recordTime);
 			} else {
 				Debug.warn ('No record time found');
+			}
+
+			/**
+				RECORD TIMER FONT
+			**/
+
+			var timerStatusFont:String;
+
+			try {
+				if (this.loaderInfo.parameters.recordtimerfont != null) {
+					timerStatusFont = this.loaderInfo.parameters.recordtimerfont;
+				}
+			} catch (error:Error) {
+				//
+			}
+
+			if (!(StringUtil.isEmpty (timerStatusFont))) {
+				this.timerStatusFont = timerStatusFont;
+				Debug.debug ('Record timer font found ' + this.timerStatusFont);
+			} else {
+				Debug.debug ('No record timer font found');
+			}
+
+			/**
+				RECORD TIMER FONT SIZE
+			**/
+
+			var timerStatusSize:String;
+
+			try {
+				if (this.loaderInfo.parameters.recordtimersize != null) {
+					timerStatusSize = this.loaderInfo.parameters.recordtimersize;
+				}
+			} catch (error:Error) {
+				//
+			}
+
+			if (!(isNaN (parseInt (timerStatusSize)))) {
+				this.timerStatusSize = parseInt (timerStatusSize);
+				Debug.debug ('Record timer font size found ' + this.timerStatusSize);
+			} else if (!(StringUtil.isEmpty (timerStatusSize))) {
+				Debug.warn ('Record timer font size was not an integer ' + timerStatusSize);
+			} else {
+				Debug.debug ('No record timer font size found');
+			}
+
+			/**
+				RECORD TIMER FONT BOLD
+			**/
+
+			var timerStatusBold:String;
+
+			try {
+				if (this.loaderInfo.parameters.recordtimerbold != null) {
+					timerStatusBold = this.loaderInfo.parameters.recordtimerbold;
+				}
+			} catch (error:Error) {
+				//
+			}
+
+			if (!(StringUtil.isEmpty (timerStatusBold))) {
+				this.timerStatusBold = StringUtil.isTrue (timerStatusBold);
+				Debug.debug ('Record timer font bold found ' + this.timerStatusBold);
+			} else {
+				Debug.debug ('No record timer font bold found');
 			}
 
 			/**
@@ -550,6 +861,51 @@ package {
 				Debug.debug ('Record button y found ' + this.buttonRecord.y);
 			} else {
 				Debug.debug ('No record button y found');
+			}
+
+			/**
+				STOP BUTTON
+			**/
+
+			var buttonStop:Object = new Object ();
+
+			try {
+				buttonStop.src = this.loaderInfo.parameters.stopsrc;
+			} catch (error:Error) {
+				//
+			}
+
+			if (!(StringUtil.isEmpty (buttonStop.src))) {
+				this.buttonStop.src = buttonStop.src;
+				Debug.debug ('Stop button source found ' + this.buttonStop.src);
+			} else {
+				Debug.warn ('No stop button source found');
+			}
+
+			try {
+				buttonStop.x = this.loaderInfo.parameters.stopx;
+			} catch (error:Error) {
+				//
+			}
+
+			if (!(StringUtil.isEmpty (buttonStop.x))) {
+				this.buttonStop.x = buttonStop.x;
+				Debug.debug ('Stop button x found ' + this.buttonStop.x);
+			} else {
+				Debug.debug ('No stop button x found');
+			}
+
+			try {
+				buttonStop.y = this.loaderInfo.parameters.stopy;
+			} catch (error:Error) {
+				//
+			}
+
+			if (!(StringUtil.isEmpty (buttonStop.y))) {
+				this.buttonStop.y = buttonStop.y;
+				Debug.debug ('Stop button y found ' + this.buttonStop.y);
+			} else {
+				Debug.debug ('No stop button y found');
 			}
 
 			/**
@@ -733,65 +1089,106 @@ package {
 			}
 		}
 
-		private function setFilters ():void {
+		private function setupVideoFilters ():void {
 			var filters:Array = new Array ();
 			filters.push (new BlurFilter (this.blur, this.blur, BitmapFilterQuality.HIGH));
 			this.video.filters = filters;
 		}
 
+		private function removeVideoFilters ():void {
+			this.video.filters = null;
+		}
+
 		private function setupImages ():void {
-			if (this.buttonPlay.src != null && this.buttonPlay.src != 'null' && this.buttonPlay.src != '') {
-				Debug.debug ('Loading play button');
-				this.buttonPlay.loader = new Loader ();
-				this.addLoaderListeners (this.buttonPlay.loader.contentLoaderInfo);
-				this.buttonPlay.loader.load (new URLRequest (this.buttonPlay.src));
+			if (this.buttonPlay.sprite == null) {
+				if (!(StringUtil.isEmpty (this.buttonPlay.src))) {
+					Debug.debug ('Loading play button');
+					this.buttonPlay.loader = new Loader ();
+					this.addLoaderListeners (this.buttonPlay.loader.contentLoaderInfo);
+					this.buttonPlay.loader.load (new URLRequest (this.buttonPlay.src));
+				} else {
+					Debug.warn ('No play button to load');
+				}
 			} else {
-				Debug.warn ('No play button to load');
+				Debug.debug ('Play button already loaded');
 			}
 
-			if (this.buttonRecord.src != null && this.buttonRecord.src != 'null' && this.buttonRecord.src != '') {
-				Debug.debug ('Loading record button');
-				this.buttonRecord.loader = new Loader ();
-				this.addLoaderListeners (this.buttonRecord.loader.contentLoaderInfo);
-				this.buttonRecord.loader.load (new URLRequest (this.buttonRecord.src));
+			if (this.buttonRecord.sprite == null) {
+				if (!(StringUtil.isEmpty (this.buttonRecord.src))) {
+					Debug.debug ('Loading record button');
+					this.buttonRecord.loader = new Loader ();
+					this.addLoaderListeners (this.buttonRecord.loader.contentLoaderInfo);
+					this.buttonRecord.loader.load (new URLRequest (this.buttonRecord.src));
+				} else {
+					Debug.warn ('No record button to load');
+				}
 			} else {
-				Debug.warn ('No record button to load');
+				Debug.debug ('Record button already loaded');
 			}
 
-			if (this.buttonUpload.src != null && this.buttonUpload.src != 'null' && this.buttonUpload.src != '') {
-				Debug.debug ('Loading upload button');
-				this.buttonUpload.loader = new Loader ();
-				this.addLoaderListeners (this.buttonUpload.loader.contentLoaderInfo);
-				this.buttonUpload.loader.load (new URLRequest (this.buttonUpload.src));
+			if (this.buttonStop.sprite == null) {
+				if (!(StringUtil.isEmpty (this.buttonStop.src))) {
+					Debug.debug ('Loading stop button');
+					this.buttonStop.loader = new Loader ();
+					this.addLoaderListeners (this.buttonStop.loader.contentLoaderInfo);
+					this.buttonStop.loader.load (new URLRequest (this.buttonStop.src));
+				} else {
+					Debug.warn ('No stop button to load');
+				}
 			} else {
-				Debug.warn ('No upload button to load');
+				Debug.debug ('Stop button already loaded');
 			}
 
-			if (this.infoScreen1.src != null && this.infoScreen1.src != 'null' && this.infoScreen1.src != '') {
-				Debug.debug ('Loading info screen 1');
-				this.infoScreen1.loader = new Loader ();
-				this.addLoaderListeners (this.infoScreen1.loader.contentLoaderInfo);
-				this.infoScreen1.loader.load (new URLRequest (this.infoScreen1.src));
+			if (this.buttonUpload.sprite == null) {
+				if (!(StringUtil.isEmpty (this.buttonUpload.src))) {
+					Debug.debug ('Loading upload button');
+					this.buttonUpload.loader = new Loader ();
+					this.addLoaderListeners (this.buttonUpload.loader.contentLoaderInfo);
+					this.buttonUpload.loader.load (new URLRequest (this.buttonUpload.src));
+				} else {
+					Debug.warn ('No upload button to load');
+				}
 			} else {
-				Debug.warn ('No info screen 1 to load');
+				Debug.debug ('Upload button already loaded');
 			}
 
-			if (this.infoScreen2.src != null && this.infoScreen2.src != 'null' && this.infoScreen2.src != '') {
-				Debug.debug ('Loading info screen 2');
-				this.infoScreen2.loader = new Loader ();
-				this.addLoaderListeners (this.infoScreen2.loader.contentLoaderInfo);
-				this.infoScreen2.loader.load (new URLRequest (this.infoScreen2.src));
+			if (this.infoScreen1.sprite == null) {
+				if (!(StringUtil.isEmpty (this.infoScreen1.src))) {
+					Debug.debug ('Loading info screen 1');
+					this.infoScreen1.loader = new Loader ();
+					this.addLoaderListeners (this.infoScreen1.loader.contentLoaderInfo);
+					this.infoScreen1.loader.load (new URLRequest (this.infoScreen1.src));
+				} else {
+					Debug.warn ('No info screen 1 to load');
+				}
 			} else {
-				Debug.debug ('No info screen 2 to load');
+				Debug.debug ('Info screen 1 already loaded');
 			}
 
-			if (this.infoScreen3.src != null && this.infoScreen3.src != 'null' && this.infoScreen3.src != '') {
-				Debug.debug ('Loading info screen 3');
-				this.infoScreen3.loader = new Loader ();
-				this.addLoaderListeners (this.infoScreen3.loader.contentLoaderInfo);
-				this.infoScreen3.loader.load (new URLRequest (this.infoScreen3.src));
+			if (this.infoScreen2.sprite == null) {
+				if (!(StringUtil.isEmpty (this.infoScreen2.src))) {
+					Debug.debug ('Loading info screen 2');
+					this.infoScreen2.loader = new Loader ();
+					this.addLoaderListeners (this.infoScreen2.loader.contentLoaderInfo);
+					this.infoScreen2.loader.load (new URLRequest (this.infoScreen2.src));
+				} else {
+					Debug.debug ('No info screen 2 to load');
+				}
 			} else {
-				Debug.debug ('No info screen 3 to load');
+				Debug.debug ('Info screen 2 already loaded');
+			}
+
+			if (this.infoScreen3.sprite == null) {
+				if (!(StringUtil.isEmpty (this.infoScreen3.src))) {
+					Debug.debug ('Loading info screen 3');
+					this.infoScreen3.loader = new Loader ();
+					this.addLoaderListeners (this.infoScreen3.loader.contentLoaderInfo);
+					this.infoScreen3.loader.load (new URLRequest (this.infoScreen3.src));
+				} else {
+					Debug.debug ('No info screen 3 to load');
+				}
+			} else {
+				Debug.debug ('Info screen 3 already loaded');
 			}
 		}
 
@@ -811,8 +1208,6 @@ package {
 				width1 = this.buttonUpload.sprite.width;
 				totalWidth += width1;
 			}
-
-			Debug.debug ('Buttons total width ' + totalWidth);
 
 			if (this.buttonPlay.sprite != null) {
 				if (!isNaN (parseInt (this.buttonPlay.x))) {
@@ -865,6 +1260,41 @@ package {
 					this.buttonUpload.sprite.y = this.currentInfoScreen.sprite.y + this.currentInfoScreen.sprite.height;
 				} else {
 					this.buttonUpload.sprite.y = (this.stage.stageHeight - this.buttonUpload.sprite.height) / 2;
+				}
+			}
+		}
+
+		private function setupStopButton ():void {
+			if (this.buttonStop.sprite != null) {
+				this.buttonStop.sprite.visible = true;
+				this.buttonStop.sprite.buttonMode = true;
+				this.buttonStop.sprite.mouseChildren = false;
+				this.buttonStop.sprite.addEventListener (MouseEvent.CLICK, this.buttonStopClickHandler, false, 0, false);
+			}
+
+			this.setupStopButtonPositions ();
+		}
+
+		private function removeStopButton ():void {
+			if (this.buttonStop.sprite != null) {
+				this.buttonStop.sprite.visible = false;
+				this.buttonStop.sprite.buttonMode = false;
+				this.buttonStop.sprite.removeEventListener (MouseEvent.CLICK, this.buttonStopClickHandler);
+			}
+		}
+
+		private function setupStopButtonPositions ():void {
+			if (this.buttonStop.sprite != null) {
+				if (!isNaN (parseInt (this.buttonStop.x))) {
+					this.buttonStop.sprite.x = parseInt (this.buttonStop.x);
+				} else {
+					this.buttonStop.sprite.x = 0;
+				}
+
+				if (!isNaN (parseInt (this.buttonStop.y))) {
+					this.buttonStop.sprite.y = parseInt (this.buttonStop.y);
+				} else {
+					this.buttonStop.sprite.y = this.stage.stageHeight - this.buttonStop.sprite.height;
 				}
 			}
 		}
@@ -1006,16 +1436,24 @@ package {
 			if (this.camera != null) {
 				if (this.video == null) {
 					this.video = new Video (this.stage.stageWidth, this.stage.stageHeight);
-					this.setupVideoSize ();
-					this.addChild (this.video);
 				}
 			} else {
-				this.sendStatusMessage (Videorec.MSG_NO_CAMERA);
 				Debug.fatal ('No camera available');
+				this.sendError (Videorec.MSG_NO_CAMERA);
 				return;
 			}
 
+			if (this.video.parent == null) {
+				this.addChild (this.video);
+			}
+
+			this.video.visible = true;
+			this.setupVideoSize ();
 			this.video.attachCamera (this.camera);
+		}
+
+		private function removeCamera ():void {
+			this.video.visible = false;
 		}
 
 		private function setupVideoSize ():void {
@@ -1042,27 +1480,53 @@ package {
 			}
 		}
 
+		private function setupMicrophone ():void {
+			if (this.microphone == null) {
+				this.microphone = Microphone.getMicrophone ();
+			}
+
+			if (this.microphone == null) {
+				Debug.fatal ('No microphone available');
+				this.sendError (Videorec.MSG_NO_MICROPHONE);
+				return;
+			}
+		}
+
 		private function setupNetConnection ():void {
-			this.connection = new NetConnection ();
-			this.connection.addEventListener (NetStatusEvent.NET_STATUS, this.connectionNetStatusHandler, false, 0, true);
-			this.connection.addEventListener (SecurityErrorEvent.SECURITY_ERROR, this.connectionSecurityErrorHandler, false, 0, true);
+			Debug.debug ('Setting up NetConnection');
+
+			if (this.connection == null) {
+				this.connection = new NetConnection ();
+				this.connection.addEventListener (NetStatusEvent.NET_STATUS, this.connectionNetStatusHandler, false, 0, true);
+				this.connection.addEventListener (SecurityErrorEvent.SECURITY_ERROR, this.connectionSecurityErrorHandler, false, 0, true);
+			}
+
 			this.connection.connect (this.connectionURL, this.sessionID);
 		}
 
 		private function setupNetStream ():void {
-			this.stream = new NetStream (this.connection);
+			Debug.debug ('Setting up NetStream');
 
-			if (
-				this.buttonRecord.sprite != null &&
-				(
-					this.infoScreen1.sprite != null ||
-					(
-						this.infoScreen1.loader == null &&
-						this.infoScreen1.sprite == null
-					)
-				)
-			) {
-				this.reset ();
+			this.removeNetStream ();
+
+			this.stream = new NetStream (this.connection);
+			this.stream.addEventListener (NetStatusEvent.NET_STATUS, this.streamNetStatusHandler, false, 0, true);
+			this.stream.addEventListener (IOErrorEvent.IO_ERROR, this.streamIoErrorHandler, false, 0, true);
+
+			if (this.streamClient == null) {
+				this.streamClient = new NetStreamClient ();
+				this.streamClient.addEventListener (NetStreamClientEvent.META, this.streamClientMetaHandler, false, 0, true);
+				this.streamClient.addEventListener (NetStreamClientEvent.PLAY_STATUS, this.streamClientStatusHandler, false, 0, true);
+			}
+
+			this.stream.client = this.streamClient;
+		}
+
+		private function removeNetStream ():void {
+			if (this.stream != null) {
+				this.removeEventListener (NetStatusEvent.NET_STATUS, this.streamNetStatusHandler);
+				this.removeEventListener (IOErrorEvent.IO_ERROR, this.streamIoErrorHandler);
+				this.stream = null;
 			}
 		}
 
@@ -1072,21 +1536,41 @@ package {
 				this.recordTimer.addEventListener (TimerEvent.TIMER, this.recordTimerUpdateHandler, false, 0, false);
 				this.recordTimer.addEventListener (TimerEvent.TIMER_COMPLETE, this.recordTimerCompleteHandler, false, 0, false);
 				this.timerStatusText = new TextField ();
+				this.timerStatusText.selectable = false;
 				this.timerStatusText.autoSize = TextFieldAutoSize.LEFT;
+				this.timerStatusTextFormat = new TextFormat ();
+				this.timerStatusTextFormat.bold = this.timerStatusBold;
+				this.timerStatusTextFormat.color = this.timerStatusColor;
+				this.timerStatusTextFormat.font = this.timerStatusFont;
+				this.timerStatusTextFormat.size = this.timerStatusSize;
+				this.timerStatusText.defaultTextFormat = this.timerStatusTextFormat;
+				if (this.timerStatusGlow) {
+					this.timerStatusText.filters = new Array ();
+					this.timerStatusText.filters.push (new GlowFilter (this.timerStatusGlowColor));
+				}
 			} else if (this.timerStatusText.parent != null) {
 				this.removeChild (this.timerStatusText);
 			}
 
 			this.setupTimerPositions ();
 			this.addChild (this.timerStatusText);
-			this.recordTimer.reset ();
 			this.recordTimeLeft = this.recordTime;
+			this.updateTimer (this.recordTime);
+			this.recordTimer.reset ();
 			this.recordTimer.start ();
+		}
+
+		private function updateTimer (time:int):void {
+			var min:int = Math.floor (time / 60);
+			var sec:int = time - (min * 60);
+			this.timerStatusText.text = (min < 10 ? '0' : '') + min + ':' + (sec < 10 ? '0' : '') + sec;
+			this.setupTimerPositions ();
 		}
 
 		private function removeTimer ():void {
 			if (this.recordTimer != null) {
 				this.recordTimer.stop ();
+				this.recordTimer.reset ();
 			}
 
 			if (this.timerStatusText != null) {
@@ -1098,20 +1582,39 @@ package {
 
 		private function setupTimerPositions ():void {
 			if (this.timerStatusText != null && this.video != null) {
-				this.timerStatusText.x = this.video.x;
-				this.timerStatusText.y = this.stage.stageHeight - this.timerStatusText.height;
+				this.timerStatusText.x = this.video.x + this.video.width - this.timerStatusText.width;
+				this.timerStatusText.y = this.video.y + this.video.height - this.timerStatusText.height;
 			}
+		}
+
+		private function sendError (message:String):void {
+			this.removeLoaderMovie ();
+			this.removeTimer ();
+			this.removeStatusMessage ();
+			this.removeCamera ();
+			this.removeInfoScreen ();
+			this.removeStopButton ();
+			this.sendStatusMessage (message);
+			this.setupStatusButton ();
+			Debug.error (message);
 		}
 
 		private function sendStatusMessage (message:String):void {
 			if (this.statusText == null) {
 				this.statusText = new TextField ();
 				this.statusText.autoSize = TextFieldAutoSize.LEFT;
+				this.statusTextFormat = new TextFormat ();
+				this.statusTextFormat.bold = Videorec.ERROR_MSG_BOLD;
+				this.statusTextFormat.color = Videorec.ERROR_MSG_COLOR;
+				this.statusTextFormat.font = Videorec.ERROR_MSG_FONT;
+				this.statusTextFormat.size = Videorec.ERROR_MSG_SIZE;
+				this.statusText.defaultTextFormat = this.statusTextFormat;
 			} else if (this.statusText.parent != null) {
 				this.removeChild (this.statusText);
 			}
 
 			this.statusText.text = message;
+			this.setupStatusMessagePositions ();
 			this.addChild (this.statusText);
 		}
 
@@ -1121,6 +1624,8 @@ package {
 					this.removeChild (this.statusText);
 				}
 			}
+
+			this.removeStatusButton ();
 		}
 
 		private function setupStatusMessagePositions ():void {
@@ -1132,6 +1637,57 @@ package {
 					this.statusText.y = (this.stage.stageHeight - this.statusText.textHeight) / 2;
 				}
 			}
+		}
+
+		private function setupStatusButton ():void {
+			if (this.statusButton == null) {
+				this.statusButton = new Sprite ();
+				this.statusButtonText = new TextField ();
+				this.statusButton.addChild (this.statusButtonText);
+				this.statusButtonText.autoSize = TextFieldAutoSize.LEFT;
+				this.statusButtonFormat = new TextFormat ();
+				this.statusButtonFormat.bold = Videorec.ERROR_BUTTON_BOLD;
+				this.statusButtonFormat.color = Videorec.ERROR_BUTTON_COLOR;
+				this.statusButtonFormat.font = Videorec.ERROR_BUTTON_FONT;
+				this.statusButtonFormat.size = Videorec.ERROR_BUTTON_SIZE;
+				this.statusButtonFormat.underline = Videorec.ERROR_BUTTON_UNDERLINE;
+				this.statusButtonText.defaultTextFormat = this.statusButtonFormat;
+				this.statusButtonText.text = Videorec.ERROR_BUTTON_TEXT;
+				this.statusButton.mouseChildren = false;
+				this.statusButton.buttonMode = true;
+			} else if (this.statusButton.parent != null) {
+				this.removeChild (this.statusButton);
+			}
+
+			this.setupStatusButtonPositions ();
+			this.statusButton.addEventListener (MouseEvent.CLICK, this.statusButtonClickHandler, false, 0, false);
+			this.addChild (this.statusButton);
+		}
+
+		private function setupStatusButtonPositions ():void {
+			if (this.statusButton != null && this.statusText != null) {
+				this.statusButton.x = (this.stage.stageWidth - this.statusButtonText.textWidth) / 2;
+				this.statusButton.y = this.statusText.y + this.statusText.height;
+			}
+		}
+
+		private function removeStatusButton ():void {
+			if (this.statusButton != null) {
+				if (this.statusButton.parent != null) {
+					this.removeChild (this.statusButton);
+				}
+				this.statusButton.removeEventListener (MouseEvent.CLICK, this.statusButtonClickHandler);
+			}
+		}
+
+		private function setupBuffering ():void {
+			this.setupVideoFilters ();
+			this.setupLoaderMovie ();
+		}
+
+		private function removeBuffering ():void {
+			this.removeLoaderMovie ();
+			this.removeVideoFilters ();
 		}
 
 		private function addLoaderListeners (dispatcher:IEventDispatcher):void {
