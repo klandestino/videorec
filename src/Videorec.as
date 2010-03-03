@@ -1,7 +1,6 @@
 package {
 
 	import flash.display.DisplayObject;
-	import flash.display.Loader;
 	import flash.display.Sprite;
 	import flash.display.Stage;
 	import flash.display.StageAlign;
@@ -29,11 +28,15 @@ package {
 	import flash.utils.Timer;
 	import flash.utils.setTimeout;
 	import net.hires.debug.Stats;
+	import org.red5.flash.bwcheck.BandwidthDetection;
 	import se.klandestino.flash.debug.Debug;
 	import se.klandestino.flash.debug.loggers.NullLogger;
 	import se.klandestino.flash.debug.loggers.TraceLogger;
+	import se.klandestino.flash.events.MultiLoaderEvent;
 	import se.klandestino.flash.events.NetStreamClientEvent;
 	import se.klandestino.flash.media.NetStreamClient;
+	import se.klandestino.flash.net.MultiLoader;
+	import se.klandestino.flash.utils.LoaderInfoParams;
 	import se.klandestino.flash.utils.StringUtil;
 
 	/**
@@ -107,7 +110,9 @@ package {
 		private var buttonRecord:Object;
 		private var buttonStop:Object;
 		private var buttonUpload:Object;
+		private var buttonsLoaded:Boolean = false;
 		private var camera:Camera;
+		private var connected:Boolean = false;
 		private var connection:NetConnection;
 		private var connectionURL:String = 'rtmp://88.80.16.137/simpleVideoRec';
 		private var currentInfoScreen:Object;
@@ -117,6 +122,7 @@ package {
 		private var infoScreen3:Object;
 		private var loaderMovie:Sprite;
 		private var microphone:Microphone;
+		private var multiLoader:MultiLoader;
 		private var recordTime:int = 120;
 		private var recordTimeLeft:int = 0;
 		private var recordTimer:Timer;
@@ -254,149 +260,24 @@ package {
 		}
 
 		private function loaderCompleteHandler (event:Event):void {
-			this.removeLoaderListeners (IEventDispatcher (event.target));
-			var type:String = '';
+			this.multiLoader.removeEventListener (Event.COMPLETE, this.loaderCompleteHandler);
+			this.multiLoader.removeEventListener (MultiLoaderEvent.ERROR, this.loaderErrorHandler);
+			this.multiLoader.removeEventListener (MultiLoaderEvent.PART_LOADED, this.loaderPartHandler);
+			this.multiLoader = null;
 
-			try {
-				if (this.buttonPlay.loader.contentLoaderInfo === event.target) {
-					type = 'play';
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			try {
-				if (this.buttonRecord.loader.contentLoaderInfo === event.target) {
-					type = 'record';
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			try {
-				if (this.buttonStop.loader.contentLoaderInfo === event.target) {
-					type = 'stop';
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			try {
-				if (this.buttonUpload.loader.contentLoaderInfo === event.target) {
-					type = 'upload';
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			try {
-				if (this.infoScreen1.loader.contentLoaderInfo === event.target) {
-					type = 'info1';
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			try {
-				if (this.infoScreen2.loader.contentLoaderInfo === event.target) {
-					type = 'info2';
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			try {
-				if (this.infoScreen3.loader.contentLoaderInfo === event.target) {
-					type = 'info3';
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			switch (type) {
-				case 'play':
-					Debug.debug ('Play button loaded');
-					this.buttonPlay.sprite = new Sprite ();
-					this.buttonPlay.sprite.visible = false;
-					this.buttonPlay.sprite.addChild (this.buttonPlay.loader.contentLoaderInfo.content);
-					this.buttonPlay.loader = null;
-					this.addChild (this.buttonPlay.sprite);
-					break;
-				case 'record':
-					Debug.debug ('Record button loaded');
-					this.buttonRecord.sprite = new Sprite ();
-					this.buttonRecord.sprite.visible = false;
-					this.buttonRecord.sprite.addChild (this.buttonRecord.loader.contentLoaderInfo.content);
-					this.buttonRecord.loader = null;
-					this.addChild (this.buttonRecord.sprite);
-					break;
-				case 'stop':
-					Debug.debug ('Stop button loaded');
-					this.buttonStop.sprite = new Sprite ();
-					this.buttonStop.sprite.visible = false;
-					this.buttonStop.sprite.addChild (this.buttonStop.loader.contentLoaderInfo.content);
-					this.buttonStop.loader = null;
-					this.addChild (this.buttonStop.sprite);
-					break;
-				case 'upload':
-					Debug.debug ('Upload button loaded');
-					this.buttonUpload.sprite = new Sprite ();
-					this.buttonUpload.sprite.visible = false;
-					this.buttonUpload.sprite.addChild (this.buttonUpload.loader.contentLoaderInfo.content);
-					this.buttonUpload.loader = null;
-					this.addChild (this.buttonUpload.sprite);
-					break;
-				case 'info1':
-					Debug.debug ('Info screen 1 loaded');
-					this.infoScreen1.sprite = new Sprite ();
-					this.infoScreen1.sprite.visible = false;
-					this.infoScreen1.sprite.addChild (this.infoScreen1.loader.contentLoaderInfo.content);
-					this.infoScreen1.loader = null;
-					this.addChild (this.infoScreen1.sprite);
-					break;
-				case 'info2':
-					Debug.debug ('Info screen 2 loaded');
-					this.infoScreen2.sprite = new Sprite ();
-					this.infoScreen2.sprite.visible = false;
-					this.infoScreen2.sprite.addChild (this.infoScreen2.loader.contentLoaderInfo.content);
-					this.infoScreen2.loader = null;
-					this.addChild (this.infoScreen2.sprite);
-					break;
-				case 'info3':
-					Debug.debug ('Info screen 3 loaded');
-					this.infoScreen3.sprite = new Sprite ();
-					this.infoScreen3.sprite.visible = false;
-					this.infoScreen3.sprite.addChild (this.infoScreen3.loader.contentLoaderInfo.content);
-					this.infoScreen3.loader = null;
-					this.addChild (this.infoScreen3.sprite);
-					break;
-			}
-
-			if (
-				this.buttonRecord.sprite != null &&
-				(
-					this.infoScreen1.sprite != null
-					|| (
-						this.stream != null &&
-						this.infoScreen1.loader == null &&
-						this.infoScreen1.sprite == null
-					)
-				)
-			) {
+			this.buttonsLoaded = true;
+			if (this.connected) {
 				this.reset ();
 			}
 		}
 
-		private function loaderHttpStatusHandler (event:HTTPStatusEvent):void {
-			if (event.status >= 400) {
-				Debug.warn ('Loading returned with status code ' + event.status);
-				this.removeLoaderListeners (IEventDispatcher (event.target));
-			}
+		private function loaderErrorHandler (event:MultiLoaderEvent):void {
+			event.place = null;
 		}
 
-		private function loaderIoErrorHandler (event:IOErrorEvent):void {
-			Debug.error ('Loading returned with input/output error');
-			this.removeLoaderListeners (IEventDispatcher (event.target));
+		private function loaderPartHandler (event:MultiLoaderEvent):void {
+			event.place.visible = false;
+			this.addChild (event.place);
 		}
 
 		private function buttonPlayClickHandler (event:MouseEvent):void {
@@ -434,16 +315,8 @@ package {
 
 			switch (event.info.code) {
 				case 'NetConnection.Connect.Success':
-					if (
-						this.buttonRecord.sprite != null &&
-						(
-							this.infoScreen1.sprite != null ||
-							(
-								this.infoScreen1.loader == null &&
-								this.infoScreen1.sprite == null
-							)
-						)
-					) {
+					this.connected = true;
+					if (this.buttonsLoaded) {
 						this.reset ();
 					}
 					break;
@@ -643,450 +516,33 @@ package {
 		*	</ul>
 		*/
 		private function getParams ():void {
-			/**
-				SESSION ID
-			**/
-
-			var sessionID:String;
-
-			try {
-				if (this.loaderInfo.parameters.sessionid != null) {
-					sessionID = this.loaderInfo.parameters.sessionid;
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (sessionID))) {
-				this.sessionID = sessionID;
-				Debug.debug ('Session id found ' + this.sessionID);
-			} else {
-				Debug.warn ('No session id found');
-			}
-
-			/**
-				CONNECTION URL
-			**/
-
-			var connectionURL:String;
-
-			try {
-				if (this.loaderInfo.parameters.connectionurl != null) {
-					connectionURL = this.loaderInfo.parameters.connectionurl;
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (connectionURL))) {
-				this.connectionURL = connectionURL;
-				Debug.debug ('Connection URL found ' + this.connectionURL);
-			} else {
-				Debug.warn ('No connection URL found');
-			}
-
-			/**
-				RECORD TIME
-			**/
-
-			var recordTime:String;
-
-			try {
-				if (this.loaderInfo.parameters.recordtime != null) {
-					recordTime = this.loaderInfo.parameters.recordtime;
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(isNaN (parseInt (recordTime)))) {
-				this.recordTime = parseInt (recordTime);
-				Debug.debug ('Record time found ' + this.recordTime);
-			} else if (!(StringUtil.isEmpty (recordTime))) {
-				Debug.warn ('Record time was not an integer ' + recordTime);
-			} else {
-				Debug.warn ('No record time found');
-			}
-
-			/**
-				RECORD TIMER FONT
-			**/
-
-			var timerStatusFont:String;
-
-			try {
-				if (this.loaderInfo.parameters.recordtimerfont != null) {
-					timerStatusFont = this.loaderInfo.parameters.recordtimerfont;
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (timerStatusFont))) {
-				this.timerStatusFont = timerStatusFont;
-				Debug.debug ('Record timer font found ' + this.timerStatusFont);
-			} else {
-				Debug.debug ('No record timer font found');
-			}
-
-			/**
-				RECORD TIMER FONT SIZE
-			**/
-
-			var timerStatusSize:String;
-
-			try {
-				if (this.loaderInfo.parameters.recordtimersize != null) {
-					timerStatusSize = this.loaderInfo.parameters.recordtimersize;
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(isNaN (parseInt (timerStatusSize)))) {
-				this.timerStatusSize = parseInt (timerStatusSize);
-				Debug.debug ('Record timer font size found ' + this.timerStatusSize);
-			} else if (!(StringUtil.isEmpty (timerStatusSize))) {
-				Debug.warn ('Record timer font size was not an integer ' + timerStatusSize);
-			} else {
-				Debug.debug ('No record timer font size found');
-			}
-
-			/**
-				RECORD TIMER FONT BOLD
-			**/
-
-			var timerStatusBold:String;
-
-			try {
-				if (this.loaderInfo.parameters.recordtimerbold != null) {
-					timerStatusBold = this.loaderInfo.parameters.recordtimerbold;
-				}
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (timerStatusBold))) {
-				this.timerStatusBold = StringUtil.isTrue (timerStatusBold);
-				Debug.debug ('Record timer font bold found ' + this.timerStatusBold);
-			} else {
-				Debug.debug ('No record timer font bold found');
-			}
-
-			/**
-				PLAY BUTTON
-			**/
-
-			var buttonPlay:Object = new Object ();
-
-			try {
-				buttonPlay.src = this.loaderInfo.parameters.playsrc;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonPlay.src))) {
-				this.buttonPlay.src = buttonPlay.src;
-				Debug.debug ('Play button source found ' + this.buttonPlay.src);
-			} else {
-				Debug.warn ('No play button source found');
-			}
-
-			try {
-				buttonPlay.x = this.loaderInfo.parameters.playx;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonPlay.x))) {
-				this.buttonPlay.x = buttonPlay.x;
-				Debug.debug ('Play button x found ' + this.buttonPlay.x);
-			} else {
-				Debug.debug ('No play button x found');
-			}
-
-			try {
-				buttonPlay.y = this.loaderInfo.parameters.playy;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonPlay.y))) {
-				this.buttonPlay.y = buttonPlay.y;
-				Debug.debug ('Play button y found ' + this.buttonPlay.y);
-			} else {
-				Debug.debug ('No play button y found');
-			}
-
-			/**
-				RECORD BUTTON
-			**/
-
-			var buttonRecord:Object = new Object ();
-
-			try {
-				buttonRecord.src = this.loaderInfo.parameters.recordsrc;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonRecord.src))) {
-				this.buttonRecord.src = buttonRecord.src;
-				Debug.debug ('Record button source found ' + this.buttonRecord.src);
-			} else {
-				Debug.warn ('No record button source found');
-			}
-
-			try {
-				buttonRecord.x = this.loaderInfo.parameters.recordx;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonRecord.x))) {
-				this.buttonRecord.x = buttonRecord.x;
-				Debug.debug ('Record button x found ' + this.buttonRecord.x);
-			} else {
-				Debug.debug ('No record button x found');
-			}
-
-			try {
-				buttonRecord.y = this.loaderInfo.parameters.recordy;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonRecord.y))) {
-				this.buttonRecord.y = buttonRecord.y;
-				Debug.debug ('Record button y found ' + this.buttonRecord.y);
-			} else {
-				Debug.debug ('No record button y found');
-			}
-
-			/**
-				STOP BUTTON
-			**/
-
-			var buttonStop:Object = new Object ();
-
-			try {
-				buttonStop.src = this.loaderInfo.parameters.stopsrc;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonStop.src))) {
-				this.buttonStop.src = buttonStop.src;
-				Debug.debug ('Stop button source found ' + this.buttonStop.src);
-			} else {
-				Debug.warn ('No stop button source found');
-			}
-
-			try {
-				buttonStop.x = this.loaderInfo.parameters.stopx;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonStop.x))) {
-				this.buttonStop.x = buttonStop.x;
-				Debug.debug ('Stop button x found ' + this.buttonStop.x);
-			} else {
-				Debug.debug ('No stop button x found');
-			}
-
-			try {
-				buttonStop.y = this.loaderInfo.parameters.stopy;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonStop.y))) {
-				this.buttonStop.y = buttonStop.y;
-				Debug.debug ('Stop button y found ' + this.buttonStop.y);
-			} else {
-				Debug.debug ('No stop button y found');
-			}
-
-			/**
-				UPLOAD BUTTON
-			**/
-
-			var buttonUpload:Object = new Object ();
-
-			try {
-				buttonUpload.src = this.loaderInfo.parameters.uploadsrc;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonUpload.src))) {
-				this.buttonUpload.src = buttonUpload.src;
-				Debug.debug ('Upload button source found ' + this.buttonUpload.src);
-			} else {
-				Debug.warn ('No upload button source found');
-			}
-
-			try {
-				buttonUpload.x = this.loaderInfo.parameters.uploadx;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonUpload.x))) {
-				this.buttonUpload.x = buttonUpload.x;
-				Debug.debug ('Upload button x found ' + this.buttonUpload.x);
-			} else {
-				Debug.debug ('No upload button x found');
-			}
-
-			try {
-				buttonUpload.y = this.loaderInfo.parameters.uploady;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (buttonUpload.y))) {
-				this.buttonUpload.y = buttonUpload.y;
-				Debug.debug ('Upload button y found ' + this.buttonUpload.y);
-			} else {
-				Debug.debug ('No upload button y found');
-			}
-
-			/**
-				INFO SCREEN 1
-			**/
-
-			var infoScreen1:Object = new Object ();
-
-			try {
-				infoScreen1.src = this.loaderInfo.parameters.info1src;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (infoScreen1.src))) {
-				this.infoScreen1.src = infoScreen1.src;
-				Debug.debug ('Info screen 1 source found ' + this.infoScreen1.src);
-			} else {
-				Debug.warn ('No info screen 1 source found');
-			}
-
-			try {
-				infoScreen1.x = this.loaderInfo.parameters.info1x;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (infoScreen1.x))) {
-				this.infoScreen1.x = infoScreen1.x;
-				Debug.debug ('Info screen 1 x found ' + this.infoScreen1.x);
-			} else {
-				Debug.debug ('No info screen 1 x found');
-			}
-
-			try {
-				infoScreen1.y = this.loaderInfo.parameters.info1y;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (infoScreen1.y))) {
-				this.infoScreen1.y = infoScreen1.y;
-				Debug.debug ('Info screen 1 y found ' + this.infoScreen1.y);
-			} else {
-				Debug.debug ('No info screen 1 y found');
-			}
-
-			/**
-				INFO SCREEN 2
-			**/
-
-			var infoScreen2:Object = new Object ();
-
-			try {
-				infoScreen2.src = this.loaderInfo.parameters.info2src;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (infoScreen2.src))) {
-				this.infoScreen2.src = infoScreen2.src;
-				Debug.debug ('Info screen 2 source found ' + this.infoScreen2.src);
-			} else {
-				Debug.warn ('No info screen 2 source found');
-			}
-
-			try {
-				infoScreen2.x = this.loaderInfo.parameters.info2x;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (infoScreen2.x))) {
-				this.infoScreen2.x = infoScreen2.x;
-				Debug.debug ('Info screen 2 x found ' + this.infoScreen2.x);
-			} else {
-				Debug.debug ('No info screen 2 x found');
-			}
-
-			try {
-				infoScreen2.y = this.loaderInfo.parameters.info2y;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (infoScreen2.y))) {
-				this.infoScreen2.y = infoScreen2.y;
-				Debug.debug ('Info screen 2 y found ' + this.infoScreen2.y);
-			} else {
-				Debug.debug ('No info screen 2 y found');
-			}
-
-			/**
-				INFO SCREEN 3
-			**/
-
-			var infoScreen3:Object = new Object ();
-
-			try {
-				infoScreen3.src = this.loaderInfo.parameters.info3src;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (infoScreen3.src))) {
-				this.infoScreen3.src = infoScreen3.src;
-				Debug.debug ('Info screen 3 source found ' + this.infoScreen3.src);
-			} else {
-				Debug.warn ('No info screen 3 source found');
-			}
-
-			try {
-				infoScreen3.x = this.loaderInfo.parameters.info3x;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (infoScreen3.x))) {
-				this.infoScreen3.x = infoScreen3.x;
-				Debug.debug ('Info screen 3 x found ' + this.infoScreen3.x);
-			} else {
-				Debug.debug ('No info screen 3 x found');
-			}
-
-			try {
-				infoScreen3.y = this.loaderInfo.parameters.info3y;
-			} catch (error:Error) {
-				//
-			}
-
-			if (!(StringUtil.isEmpty (infoScreen3.y))) {
-				this.infoScreen3.y = infoScreen3.y;
-				Debug.debug ('Info screen 3 y found ' + this.infoScreen3.y);
-			} else {
-				Debug.debug ('No info screen 3 y found');
-			}
+			this.sessionID = LoaderInfoParams.getParam (this.loaderInfo, 'sessionid', this.sessionID);
+			this.connectionURL = LoaderInfoParams.getParam (this.loaderInfo, 'connectionurl', this.connectionURL);
+			this.recordTime = LoaderInfoParams.getParam (this.loaderInfo, 'recordtime', this.recordTime);
+			this.timerStatusFont = LoaderInfoParams.getParam (this.loaderInfo, 'recordtimerfont', this.timerStatusFont);
+			this.timerStatusSize = LoaderInfoParams.getParam (this.loaderInfo, 'recordtimersize', this.timerStatusSize);
+			this.timerStatusBold = LoaderInfoParams.getParam (this.loaderInfo, 'recordtimerbold', this.timerStatusBold);
+			this.buttonPlay.src = LoaderInfoParams.getParam (this.loaderInfo, 'playsrc', '');
+			this.buttonPlay.x = LoaderInfoParams.getParam (this.loaderInfo, 'playx', '');
+			this.buttonPlay.y = LoaderInfoParams.getParam (this.loaderInfo, 'playy', '');
+			this.buttonRecord.src = LoaderInfoParams.getParam (this.loaderInfo, 'recordsrc', '');
+			this.buttonRecord.x = LoaderInfoParams.getParam (this.loaderInfo, 'recordx', '');
+			this.buttonRecord.y = LoaderInfoParams.getParam (this.loaderInfo, 'recordy', '');
+			this.buttonStop.src = LoaderInfoParams.getParam (this.loaderInfo, 'stopsrc', '');
+			this.buttonStop.x = LoaderInfoParams.getParam (this.loaderInfo, 'stopx', '');
+			this.buttonStop.y = LoaderInfoParams.getParam (this.loaderInfo, 'stopy', '');
+			this.buttonUpload.src = LoaderInfoParams.getParam (this.loaderInfo, 'uploadsrc', '');
+			this.buttonUpload.x = LoaderInfoParams.getParam (this.loaderInfo, 'uploadx', '');
+			this.buttonUpload.y = LoaderInfoParams.getParam (this.loaderInfo, 'uploady', '');
+			this.infoScreen1.src = LoaderInfoParams.getParam (this.loaderInfo, 'info1src', '');
+			this.infoScreen1.x = LoaderInfoParams.getParam (this.loaderInfo, 'info1x', '');
+			this.infoScreen1.y = LoaderInfoParams.getParam (this.loaderInfo, 'info1y', '');
+			this.infoScreen2.src = LoaderInfoParams.getParam (this.loaderInfo, 'info2src', '');
+			this.infoScreen2.x = LoaderInfoParams.getParam (this.loaderInfo, 'info2x', '');
+			this.infoScreen2.y = LoaderInfoParams.getParam (this.loaderInfo, 'info2y', '');
+			this.infoScreen3.src = LoaderInfoParams.getParam (this.loaderInfo, 'info3src', '');
+			this.infoScreen3.x = LoaderInfoParams.getParam (this.loaderInfo, 'info3x', '');
+			this.infoScreen3.y = LoaderInfoParams.getParam (this.loaderInfo, 'info3y', '');
 		}
 
 		private function setupVideoFilters ():void {
@@ -1100,96 +556,61 @@ package {
 		}
 
 		private function setupImages ():void {
+			this.multiLoader = new MultiLoader ();
+			this.multiLoader.addEventListener (Event.COMPLETE, this.loaderCompleteHandler, false, 0, true);
+			this.multiLoader.addEventListener (MultiLoaderEvent.ERROR, this.loaderErrorHandler, false, 0, true);
+			this.multiLoader.addEventListener (MultiLoaderEvent.PART_LOADED, this.loaderPartHandler, false, 0, true);
+
 			if (this.buttonPlay.sprite == null) {
-				if (!(StringUtil.isEmpty (this.buttonPlay.src))) {
-					Debug.debug ('Loading play button');
-					this.buttonPlay.loader = new Loader ();
-					this.addLoaderListeners (this.buttonPlay.loader.contentLoaderInfo);
-					this.buttonPlay.loader.load (new URLRequest (this.buttonPlay.src));
-				} else {
-					Debug.warn ('No play button to load');
-				}
+				this.buttonPlay.sprite = new Sprite;
+				this.multiLoader.add (this.buttonPlay.src, 'play', this.buttonPlay.sprite);
 			} else {
 				Debug.debug ('Play button already loaded');
 			}
 
 			if (this.buttonRecord.sprite == null) {
-				if (!(StringUtil.isEmpty (this.buttonRecord.src))) {
-					Debug.debug ('Loading record button');
-					this.buttonRecord.loader = new Loader ();
-					this.addLoaderListeners (this.buttonRecord.loader.contentLoaderInfo);
-					this.buttonRecord.loader.load (new URLRequest (this.buttonRecord.src));
-				} else {
-					Debug.warn ('No record button to load');
-				}
+				this.buttonRecord.sprite = new Sprite;
+				this.multiLoader.add (this.buttonRecord.src, 'record', this.buttonRecord.sprite);
 			} else {
 				Debug.debug ('Record button already loaded');
 			}
 
 			if (this.buttonStop.sprite == null) {
-				if (!(StringUtil.isEmpty (this.buttonStop.src))) {
-					Debug.debug ('Loading stop button');
-					this.buttonStop.loader = new Loader ();
-					this.addLoaderListeners (this.buttonStop.loader.contentLoaderInfo);
-					this.buttonStop.loader.load (new URLRequest (this.buttonStop.src));
-				} else {
-					Debug.warn ('No stop button to load');
-				}
+				this.buttonStop.sprite = new Sprite;
+				this.multiLoader.add (this.buttonStop.src, 'stop', this.buttonStop.sprite);
 			} else {
 				Debug.debug ('Stop button already loaded');
 			}
 
 			if (this.buttonUpload.sprite == null) {
-				if (!(StringUtil.isEmpty (this.buttonUpload.src))) {
-					Debug.debug ('Loading upload button');
-					this.buttonUpload.loader = new Loader ();
-					this.addLoaderListeners (this.buttonUpload.loader.contentLoaderInfo);
-					this.buttonUpload.loader.load (new URLRequest (this.buttonUpload.src));
-				} else {
-					Debug.warn ('No upload button to load');
-				}
+				this.buttonUpload.sprite = new Sprite;
+				this.multiLoader.add (this.buttonUpload.src, 'upload', this.buttonUpload.sprite);
 			} else {
 				Debug.debug ('Upload button already loaded');
 			}
 
 			if (this.infoScreen1.sprite == null) {
-				if (!(StringUtil.isEmpty (this.infoScreen1.src))) {
-					Debug.debug ('Loading info screen 1');
-					this.infoScreen1.loader = new Loader ();
-					this.addLoaderListeners (this.infoScreen1.loader.contentLoaderInfo);
-					this.infoScreen1.loader.load (new URLRequest (this.infoScreen1.src));
-				} else {
-					Debug.warn ('No info screen 1 to load');
-				}
+				this.infoScreen1.sprite = new Sprite;
+				this.multiLoader.add (this.infoScreen1.src, 'info1', this.infoScreen1.sprite);
 			} else {
 				Debug.debug ('Info screen 1 already loaded');
 			}
 
 			if (this.infoScreen2.sprite == null) {
-				if (!(StringUtil.isEmpty (this.infoScreen2.src))) {
-					Debug.debug ('Loading info screen 2');
-					this.infoScreen2.loader = new Loader ();
-					this.addLoaderListeners (this.infoScreen2.loader.contentLoaderInfo);
-					this.infoScreen2.loader.load (new URLRequest (this.infoScreen2.src));
-				} else {
-					Debug.debug ('No info screen 2 to load');
-				}
+				this.infoScreen2.sprite = new Sprite;
+				this.multiLoader.add (this.infoScreen2.src, 'info2', this.infoScreen2.sprite);
 			} else {
 				Debug.debug ('Info screen 2 already loaded');
 			}
 
 			if (this.infoScreen3.sprite == null) {
-				if (!(StringUtil.isEmpty (this.infoScreen3.src))) {
-					Debug.debug ('Loading info screen 3');
-					this.infoScreen3.loader = new Loader ();
-					this.addLoaderListeners (this.infoScreen3.loader.contentLoaderInfo);
-					this.infoScreen3.loader.load (new URLRequest (this.infoScreen3.src));
-				} else {
-					Debug.debug ('No info screen 3 to load');
-				}
+				this.infoScreen3.sprite = new Sprite;
+				this.multiLoader.add (this.infoScreen3.src, 'info3', this.infoScreen3.sprite);
 			} else {
 				Debug.debug ('Info screen 3 already loaded');
 			}
+
+			this.multiLoader.load ();
 		}
 
 		private function setupButtonsPositions ():void {
@@ -1688,18 +1109,6 @@ package {
 		private function removeBuffering ():void {
 			this.removeLoaderMovie ();
 			this.removeVideoFilters ();
-		}
-
-		private function addLoaderListeners (dispatcher:IEventDispatcher):void {
-			dispatcher.addEventListener (Event.COMPLETE, this.loaderCompleteHandler, false, 0, true);
-			dispatcher.addEventListener (HTTPStatusEvent.HTTP_STATUS, this.loaderHttpStatusHandler, false, 0, true);
-			dispatcher.addEventListener (IOErrorEvent.IO_ERROR, this.loaderIoErrorHandler, false, 0, true);
-		}
-
-		private function removeLoaderListeners (dispatcher:IEventDispatcher):void {
-			dispatcher.removeEventListener (Event.COMPLETE, this.loaderCompleteHandler);
-			dispatcher.removeEventListener (HTTPStatusEvent.HTTP_STATUS, this.loaderHttpStatusHandler);
-			dispatcher.removeEventListener (IOErrorEvent.IO_ERROR, this.loaderIoErrorHandler);
 		}
 
 	}
