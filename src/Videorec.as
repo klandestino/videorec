@@ -12,6 +12,7 @@ package {
 	import flash.events.IEventDispatcher;
 	import flash.events.IOErrorEvent;
 	import flash.events.SecurityErrorEvent;
+	import flash.events.StatusEvent;
 	import flash.events.TimerEvent;
 	import flash.filters.BlurFilter;
 	import flash.filters.BitmapFilterQuality;
@@ -22,6 +23,8 @@ package {
 	import flash.net.NetConnection;
 	import flash.net.NetStream;
 	import flash.net.URLRequest;
+	import flash.system.Security;
+	import flash.system.SecurityPanel;
 	import flash.text.TextField;
 	import flash.text.TextFieldAutoSize;
 	import flash.text.TextFormat;
@@ -123,6 +126,7 @@ package {
 		private var loaderMovie:Sprite;
 		private var microphone:Microphone;
 		private var multiLoader:MultiLoader;
+		private var muted:Boolean = true;
 		private var recordTime:int = 120;
 		private var recordTimeLeft:int = 0;
 		private var recordTimer:Timer;
@@ -259,25 +263,44 @@ package {
 			this.setupStopButtonPositions ();
 		}
 
+		private function cameraStatusHandler (event:StatusEvent):void {
+			Debug.debug ('Camera status: ' + event.code);
+
+			switch (event.code) {
+				case 'Camera.Unmuted':
+					this.setupCamera ();
+
+					if (this.connected && this.buttonsLoaded) {
+						this.reset ();
+					}
+					break;
+				case 'Camera.Muted':
+					this.sendError (Videorec.MSG_NO_CAMERA);
+					break;
+			}
+		}
+
 		private function loaderCompleteHandler (event:Event):void {
+			Debug.debug ('All images loaded');
+
 			this.multiLoader.removeEventListener (Event.COMPLETE, this.loaderCompleteHandler);
 			this.multiLoader.removeEventListener (MultiLoaderEvent.ERROR, this.loaderErrorHandler);
 			this.multiLoader.removeEventListener (MultiLoaderEvent.PART_LOADED, this.loaderPartHandler);
 			this.multiLoader = null;
 
 			this.buttonsLoaded = true;
-			if (this.connected) {
+			if (this.connected && !(this.muted)) {
 				this.reset ();
 			}
 		}
 
 		private function loaderErrorHandler (event:MultiLoaderEvent):void {
-			event.place = null;
+			event.setProperties (null, null);
 		}
 
 		private function loaderPartHandler (event:MultiLoaderEvent):void {
-			event.place.visible = false;
-			this.addChild (event.place);
+			event.container.visible = false;
+			this.addChild (event.container);
 		}
 
 		private function buttonPlayClickHandler (event:MouseEvent):void {
@@ -316,7 +339,7 @@ package {
 			switch (event.info.code) {
 				case 'NetConnection.Connect.Success':
 					this.connected = true;
-					if (this.buttonsLoaded) {
+					if (this.buttonsLoaded && !(this.muted)) {
 						this.reset ();
 					}
 					break;
@@ -395,6 +418,10 @@ package {
 		}
 
 		private function statusButtonClickHandler (event:MouseEvent):void {
+			if (this.muted) {
+				Security.showSettings (SecurityPanel.PRIVACY);
+			}
+
 			this.init ();
 		}
 
@@ -472,7 +499,7 @@ package {
 			this.setupStopButton ();
 			this.camera.setLoopback (true);
 			this.stream.attachCamera (this.camera);
-			this.stream.attachAudio (this.microphone);
+			//this.stream.attachAudio (this.microphone);
 			this.setupTimer ();
 		}
 
@@ -562,49 +589,49 @@ package {
 			this.multiLoader.addEventListener (MultiLoaderEvent.PART_LOADED, this.loaderPartHandler, false, 0, true);
 
 			if (this.buttonPlay.sprite == null) {
-				this.buttonPlay.sprite = new Sprite;
+				this.buttonPlay.sprite = new Sprite ();
 				this.multiLoader.add (this.buttonPlay.src, 'play', this.buttonPlay.sprite);
 			} else {
 				Debug.debug ('Play button already loaded');
 			}
 
 			if (this.buttonRecord.sprite == null) {
-				this.buttonRecord.sprite = new Sprite;
+				this.buttonRecord.sprite = new Sprite ();
 				this.multiLoader.add (this.buttonRecord.src, 'record', this.buttonRecord.sprite);
 			} else {
 				Debug.debug ('Record button already loaded');
 			}
 
 			if (this.buttonStop.sprite == null) {
-				this.buttonStop.sprite = new Sprite;
+				this.buttonStop.sprite = new Sprite ();
 				this.multiLoader.add (this.buttonStop.src, 'stop', this.buttonStop.sprite);
 			} else {
 				Debug.debug ('Stop button already loaded');
 			}
 
 			if (this.buttonUpload.sprite == null) {
-				this.buttonUpload.sprite = new Sprite;
+				this.buttonUpload.sprite = new Sprite ();
 				this.multiLoader.add (this.buttonUpload.src, 'upload', this.buttonUpload.sprite);
 			} else {
 				Debug.debug ('Upload button already loaded');
 			}
 
 			if (this.infoScreen1.sprite == null) {
-				this.infoScreen1.sprite = new Sprite;
+				this.infoScreen1.sprite = new Sprite ();
 				this.multiLoader.add (this.infoScreen1.src, 'info1', this.infoScreen1.sprite);
 			} else {
 				Debug.debug ('Info screen 1 already loaded');
 			}
 
 			if (this.infoScreen2.sprite == null) {
-				this.infoScreen2.sprite = new Sprite;
+				this.infoScreen2.sprite = new Sprite ();
 				this.multiLoader.add (this.infoScreen2.src, 'info2', this.infoScreen2.sprite);
 			} else {
 				Debug.debug ('Info screen 2 already loaded');
 			}
 
 			if (this.infoScreen3.sprite == null) {
-				this.infoScreen3.sprite = new Sprite;
+				this.infoScreen3.sprite = new Sprite ();
 				this.multiLoader.add (this.infoScreen3.src, 'info3', this.infoScreen3.sprite);
 			} else {
 				Debug.debug ('Info screen 3 already loaded');
@@ -852,9 +879,19 @@ package {
 		private function setupCamera ():void {
 			if (this.camera == null) {
 				this.camera = Camera.getCamera ();
+				this.camera.addEventListener (StatusEvent.STATUS, this.cameraStatusHandler, false, 0, true);
 			}
 
 			if (this.camera != null) {
+				if (this.camera.muted) {
+					Debug.debug ('Camera is muted');
+					this.muted = true;
+					Security.showSettings (SecurityPanel.PRIVACY);
+				} else {
+					this.muted = false;
+					Debug.debug ('Camera is not muted');
+				}
+
 				if (this.video == null) {
 					this.video = new Video (this.stage.stageWidth, this.stage.stageHeight);
 				}
@@ -870,7 +907,10 @@ package {
 
 			this.video.visible = true;
 			this.setupVideoSize ();
-			this.video.attachCamera (this.camera);
+
+			if (!(this.muted)) {
+				this.video.attachCamera (this.camera);
+			}
 		}
 
 		private function removeCamera ():void {
@@ -879,7 +919,9 @@ package {
 
 		private function setupVideoSize ():void {
 			if (this.camera != null) {
-				this.camera.setMode (this.stage.stageWidth, this.stage.stageHeight, this.stage.frameRate);
+				if (!(this.muted)) {
+					this.camera.setMode (this.stage.stageWidth, this.stage.stageHeight, this.stage.frameRate);
+				}
 
 				var width:Number = this.camera.width;
 				var height:Number = this.camera.height;
@@ -898,6 +940,8 @@ package {
 				this.video.height = height;
 				this.video.x = (this.stage.stageWidth - this.video.width) / 2;
 				this.video.y = (this.stage.stageHeight - this.video.height) / 2;
+
+				Debug.debug ('Video size ' + this.video.width + 'x' + this.video.height + ', position ' + this.video.x + 'x' + this.video.y);
 			}
 		}
 
