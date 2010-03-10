@@ -4,7 +4,7 @@
 	<property name="build.dir" value="." />
 	<property name="deploy.dir" value="bin" />
 	<property name="src.dir" value="src" />
-	<property name="klandestino.src.dir" value="../../../astrelib/trunk/src" />
+	<property name="klandestino.src.dir" value="../../../../astrelib/trunk/src" />
 	<target name="compile">
 		<exec executable="${flex.mxmlc}" failonerror="true">
 			<arg line="-source-path '${klandestino.src.dir}'" />

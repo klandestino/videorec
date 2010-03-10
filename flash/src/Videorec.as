@@ -5,6 +5,7 @@ package {
 	import flash.display.Stage;
 	import flash.display.StageAlign;
 	import flash.display.StageScaleMode;
+	import flash.events.ErrorEvent;
 	import flash.events.Event;
 	import flash.events.HTTPStatusEvent;
 	import flash.events.MouseEvent;
@@ -31,7 +32,7 @@ package {
 	import flash.utils.Timer;
 	import flash.utils.setTimeout;
 	import net.hires.debug.Stats;
-	import org.red5.flash.bwcheck.BandwidthDetection;
+	import org.red5.flash.bwcheck.events.BandwidthDetectEvent;
 	import se.klandestino.flash.debug.Debug;
 	import se.klandestino.flash.debug.loggers.NullLogger;
 	import se.klandestino.flash.debug.loggers.TraceLogger;
@@ -41,6 +42,7 @@ package {
 	import se.klandestino.flash.net.MultiLoader;
 	import se.klandestino.flash.utils.LoaderInfoParams;
 	import se.klandestino.flash.utils.StringUtil;
+	import se.klandestino.videorec.Red5BwDetect;
 
 	/**
 	 *	Sprite sub class description.
@@ -114,6 +116,7 @@ package {
 		private var buttonStop:Object;
 		private var buttonUpload:Object;
 		private var buttonsLoaded:Boolean = false;
+		private var bwDetect:Red5BwDetect;
 		private var camera:Camera;
 		private var connected:Boolean = false;
 		private var connection:NetConnection;
@@ -415,6 +418,14 @@ package {
 		private function streamClientMetaHandler (event:NetStreamClientEvent):void {
 			Debug.debug ('NetStream meta: duration=' + event.info.duration + ' width=' + event.info.width + ' height=' + event.info.height + ' framerate=' + event.info.framerate);
 			this.streamDuration = parseFloat (event.info.duration);
+		}
+
+		private function bwCheckCompleteHandler (event:Event):void {
+			//
+		}
+
+		private function bwCheckFailedHandler (event:ErrorEvent):void {
+			Debug.debug ('Bandwidth detection failed');
 		}
 
 		private function statusButtonClickHandler (event:MouseEvent):void {
@@ -964,6 +975,11 @@ package {
 				this.connection = new NetConnection ();
 				this.connection.addEventListener (NetStatusEvent.NET_STATUS, this.connectionNetStatusHandler, false, 0, true);
 				this.connection.addEventListener (SecurityErrorEvent.SECURITY_ERROR, this.connectionSecurityErrorHandler, false, 0, true);
+
+				this.bwDetect = new Red5BwDetect ();
+				this.bwDetect.addEventListener (Event.COMPLETE, this.bwCheckCompleteHandler, false, 0, true);
+				this.bwDetect.addEventListener (ErrorEvent.ERROR, this.bwCheckFailedHandler, false, 0, true);
+				this.bwDetect.connection = this.connection;
 			}
 
 			this.connection.connect (this.connectionURL, this.sessionID);
