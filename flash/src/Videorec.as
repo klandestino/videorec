@@ -118,7 +118,6 @@ package {
 		private var buttonsLoaded:Boolean = false;
 		private var bwDetect:Red5BwDetect;
 		private var camera:Camera;
-		private var connected:Boolean = false;
 		private var connection:NetConnection;
 		private var connectionURL:String = 'rtmp://88.80.16.137/simpleVideoRec';
 		private var currentInfoScreen:Object;
@@ -129,7 +128,6 @@ package {
 		private var loaderMovie:Sprite;
 		private var microphone:Microphone;
 		private var multiLoader:MultiLoader;
-		private var muted:Boolean = true;
 		private var recordTime:int = 120;
 		private var recordTimeLeft:int = 0;
 		private var recordTimer:Timer;
@@ -273,7 +271,7 @@ package {
 				case 'Camera.Unmuted':
 					this.setupCamera ();
 
-					if (this.connected && this.buttonsLoaded) {
+					if (this.connection.connected && this.buttonsLoaded && this.bwDetect.detected) {
 						this.reset ();
 					}
 					break;
@@ -292,7 +290,7 @@ package {
 			this.multiLoader = null;
 
 			this.buttonsLoaded = true;
-			if (this.connected && !(this.muted)) {
+			if (this.connection.connected && !(this.camera.muted) && this.bwDetect.detected) {
 				this.reset ();
 			}
 		}
@@ -341,8 +339,7 @@ package {
 
 			switch (event.info.code) {
 				case 'NetConnection.Connect.Success':
-					this.connected = true;
-					if (this.buttonsLoaded && !(this.muted)) {
+					if (this.buttonsLoaded && !(this.camera.muted) && this.bwDetect.detected) {
 						this.reset ();
 					}
 					break;
@@ -421,7 +418,11 @@ package {
 		}
 
 		private function bwCheckCompleteHandler (event:Event):void {
-			//
+			Debug.debug ('Bandwidth detection complete');
+
+			if (this.connection.connected && this.buttonsLoaded && !(this.camera.muted)) {
+				this.reset ();
+			}
 		}
 
 		private function bwCheckFailedHandler (event:ErrorEvent):void {
@@ -429,7 +430,7 @@ package {
 		}
 
 		private function statusButtonClickHandler (event:MouseEvent):void {
-			if (this.muted) {
+			if (this.camera.muted) {
 				Security.showSettings (SecurityPanel.PRIVACY);
 			}
 
@@ -508,6 +509,12 @@ package {
 			this.removeLoaderMovie ();
 			this.removeVideoFilters ();
 			this.setupStopButton ();
+
+			if (this.bwDetect.detected) {
+				Debug.debug ('Setting camera bandwidth to ' + this.bwDetect.kbitUp + ' kbit');
+				this.camera.setQuality (this.bwDetect.kbitUp, 0);
+			}
+
 			this.camera.setLoopback (true);
 			this.stream.attachCamera (this.camera);
 			//this.stream.attachAudio (this.microphone);
@@ -896,10 +903,8 @@ package {
 			if (this.camera != null) {
 				if (this.camera.muted) {
 					Debug.debug ('Camera is muted');
-					this.muted = true;
 					Security.showSettings (SecurityPanel.PRIVACY);
 				} else {
-					this.muted = false;
 					Debug.debug ('Camera is not muted');
 				}
 
@@ -919,7 +924,7 @@ package {
 			this.video.visible = true;
 			this.setupVideoSize ();
 
-			if (!(this.muted)) {
+			if (!(this.camera.muted)) {
 				this.video.attachCamera (this.camera);
 			}
 		}
@@ -930,7 +935,7 @@ package {
 
 		private function setupVideoSize ():void {
 			if (this.camera != null) {
-				if (!(this.muted)) {
+				if (!(this.camera.muted)) {
 					this.camera.setMode (this.stage.stageWidth, this.stage.stageHeight, this.stage.frameRate);
 				}
 

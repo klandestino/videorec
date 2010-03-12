@@ -45,6 +45,12 @@ package se.klandestino.videorec {
 		//--------------------------------------
 
 		private var _connection:NetConnection;
+		private var _deltaDown:Number = 0;
+		private var _deltaUp:Number = 0;
+		private var _detected:Boolean = false;
+		private var _kbitDown:Number = 0;
+		private var _kbitUp:Number = 0;
+		private var _latency:Number = 0;
 		private var clientServer:ClientServerBandwidth;
 		private var serverClient:ServerClientBandwidth;
 
@@ -62,11 +68,36 @@ package se.klandestino.videorec {
 			this.setupConnection ();
 		}
 
+		public function get detected ():Boolean {
+			return this._detected;
+		}
+
+		public function get deltaDown ():Number {
+			return this._deltaDown;
+		}
+
+		public function get deltaUp ():Number {
+			return this._deltaUp;
+		}
+
+		public function get kbitDown ():Number {
+			return this._kbitDown;
+		}
+
+		public function get kbitUp ():Number {
+			return this._kbitUp;
+		}
+
+		public function get latency ():Number {
+			return this._latency;
+		}
+
 		//--------------------------------------
 		//  PUBLIC METHODS
 		//--------------------------------------
 
 		public function start ():void {
+			this._detected = false;
 			this.startServerClient ();
 		}
 
@@ -95,18 +126,25 @@ package se.klandestino.videorec {
 
 		public function clientCompleteHandler (event:BandwidthDetectEvent):void {			
 			Debug.debug ('Client/Server detection complete – kbitUp = ' + event.info.kbitUp + ', deltaUp: ' + event.info.deltaUp + ', deltaTime: ' + event.info.deltaTime + ', latency: ' + event.info.latency + ', KBytes: ' + event.info.KBytes);
+			this._kbitUp = event.info.kbitUp;
+			this._deltaUp = event.info.deltaUp;
+			this._latency = event.info.latency;
 			this.stopClientServer ();
+			this._detected = true;
 			this.dispatchEvent (new Event (Event.COMPLETE));
 		}
 		
 		public function clientStatusHandler (event:BandwidthDetectEvent):void {
 			if (event.info != null) {
-				Debug.debug ('Client/Server detection status count: ' + event.info.count + ', sent: ' + event.info.sent + ', timePassed: ' + event.info.timePassed + ', latency: ' + event.info.latency + ', overhead: ' + event.info.overhead + ', packet interval: ' + event.info.pakInterval + ', cumLatency: ' + event.info.cumLatency);
+				Debug.debug ('Client/Server detection status – count: ' + event.info.count + ', sent: ' + event.info.sent + ', timePassed: ' + event.info.timePassed + ', latency: ' + event.info.latency + ', overhead: ' + event.info.overhead + ', packet interval: ' + event.info.pakInterval + ', cumLatency: ' + event.info.cumLatency);
 			}
 		}
 
 		public function serverCompleteHandler (event:BandwidthDetectEvent):void {
 			Debug.debug ('Server/Client detection complete – kbitDown: ' + event.info.kbitDown + ', deltaDown: ' + event.info.deltaDown + ', deltaTime: ' + event.info.deltaTime + ', latency: ' + event.info.latency);
+			this._kbitDown = event.info.kbitDown;
+			this._deltaDown = event.info.deltaDown;
+			this._latency = event.info.latency;
 			this.stopServerClient ();
 			this.startClientServer ();
 		}
