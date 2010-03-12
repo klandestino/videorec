@@ -483,10 +483,11 @@ package {
 			this.setupImages ();
 			this.setupNetConnection ();
 
-			if (this.stats == null) {
+			// Visible memory statistics
+			/*if (this.stats == null) {
 				this.stats = new Stats ();
 				this.addChild (this.stats);
-			}
+			}*/
 		}
 
 		private function playStart ():void {
