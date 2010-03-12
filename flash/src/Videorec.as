@@ -78,11 +78,13 @@ package {
 		public static const MSG_SECURITY_ERROR:String = 'Server connection failed with a security error!';
 		public static const MSG_STREAM_IO_ERROR:String = 'An input/output error occured while working with the network stream!';
 
+		public static const MICROPHONE_GAIN:Number = 100;
+
 		public static const SCREEN_INFO:int = 1;
 		public static const SCREEN_PLAY:int = 2;
 		public static const SCREEN_DONE:int = 3;
 
-		public static const STREAM_BUFFER:int = 5;
+		public static const STREAM_BUFFER:int = 2;
 
 		//--------------------------------------
 		//  CONSTRUCTOR
@@ -228,12 +230,11 @@ package {
 			this.removeTimer ();
 			this.removeStopButton ();
 			this.setupLoaderMovie ();
-			this.stream.receiveVideo (false);
-			this.stream.receiveAudio (false);
 			this.stream.close ();
 			this.removeNetStream ();
 			this.setupVideoFilters ();
 			this.camera.setLoopback (false);
+			this.microphone.setLoopBack (false);
 			this.video.attachNetStream (null);
 			this.video.attachCamera (this.camera);
 
@@ -271,12 +272,29 @@ package {
 				case 'Camera.Unmuted':
 					this.setupCamera ();
 
-					if (this.connection.connected && this.buttonsLoaded && this.bwDetect.detected) {
+					if (this.connection.connected && this.buttonsLoaded && this.bwDetect.detected && !(this.microphone.muted)) {
 						this.reset ();
 					}
 					break;
 				case 'Camera.Muted':
 					this.sendError (Videorec.MSG_NO_CAMERA);
+					break;
+			}
+		}
+
+		private function microphoneStatusHandler (event:StatusEvent):void {
+			Debug.debug ('Microphone status: ' + event.code);
+
+			switch (event.code) {
+				case 'Microphone.Unmuted':
+					this.setupCamera ();
+
+					if (this.connection.connected && this.buttonsLoaded && this.bwDetect.detected && !(this.camera.muted)) {
+						this.reset ();
+					}
+					break;
+				case 'Microphone.Muted':
+					this.sendError (Videorec.MSG_NO_MICROPHONE);
 					break;
 			}
 		}
@@ -290,7 +308,7 @@ package {
 			this.multiLoader = null;
 
 			this.buttonsLoaded = true;
-			if (this.connection.connected && !(this.camera.muted) && this.bwDetect.detected) {
+			if (this.connection.connected && this.bwDetect.detected && !(this.camera.muted) && !(this.microphone.muted)) {
 				this.reset ();
 			}
 		}
@@ -339,7 +357,7 @@ package {
 
 			switch (event.info.code) {
 				case 'NetConnection.Connect.Success':
-					if (this.buttonsLoaded && !(this.camera.muted) && this.bwDetect.detected) {
+					if (this.buttonsLoaded && this.bwDetect.detected && !(this.camera.muted) && !(this.microphone.muted)) {
 						this.reset ();
 					}
 					break;
@@ -413,14 +431,20 @@ package {
 		}
 
 		private function streamClientMetaHandler (event:NetStreamClientEvent):void {
-			Debug.debug ('NetStream meta: duration=' + event.info.duration + ' width=' + event.info.width + ' height=' + event.info.height + ' framerate=' + event.info.framerate);
+			Debug.debug ('NetStream meta');
+
+			var key:String;
+			for (key in event.info) {
+				Debug.debug (key + ': ' + event.info [key]);
+			}
+
 			this.streamDuration = parseFloat (event.info.duration);
 		}
 
 		private function bwCheckCompleteHandler (event:Event):void {
 			Debug.debug ('Bandwidth detection complete');
 
-			if (this.connection.connected && this.buttonsLoaded && !(this.camera.muted)) {
+			if (this.connection.connected && this.buttonsLoaded && !(this.camera.muted) && !(this.microphone.muted)) {
 				this.reset ();
 			}
 		}
@@ -430,7 +454,7 @@ package {
 		}
 
 		private function statusButtonClickHandler (event:MouseEvent):void {
-			if (this.camera.muted) {
+			if (this.camera.muted || this.microphone.muted) {
 				Security.showSettings (SecurityPanel.PRIVACY);
 			}
 
@@ -478,6 +502,7 @@ package {
 			this.removeStatusMessage ();
 			this.getParams ();
 			this.setupCamera ();
+			this.setupMicrophone ();
 			this.setupVideoFilters ();
 			this.setupLoaderMovie ();
 			this.setupImages ();
@@ -517,8 +542,9 @@ package {
 			}
 
 			this.camera.setLoopback (true);
+			//this.microphone.setLoopBack (true);
 			this.stream.attachCamera (this.camera);
-			//this.stream.attachAudio (this.microphone);
+			this.stream.attachAudio (this.microphone);
 			this.setupTimer ();
 		}
 
@@ -898,7 +924,10 @@ package {
 		private function setupCamera ():void {
 			if (this.camera == null) {
 				this.camera = Camera.getCamera ();
-				this.camera.addEventListener (StatusEvent.STATUS, this.cameraStatusHandler, false, 0, true);
+
+				if (this.camera != null) {
+					this.camera.addEventListener (StatusEvent.STATUS, this.cameraStatusHandler, false, 0, true);
+				}
 			}
 
 			if (this.camera != null) {
@@ -965,9 +994,23 @@ package {
 		private function setupMicrophone ():void {
 			if (this.microphone == null) {
 				this.microphone = Microphone.getMicrophone ();
+
+				if (this.microphone != null) {
+					this.microphone.gain = Videorec.MICROPHONE_GAIN;
+					this.microphone.setUseEchoSuppression (true);
+					this.microphone.setSilenceLevel (0);
+					this.microphone.addEventListener (StatusEvent.STATUS, this.microphoneStatusHandler, false, 0, true);
+				}
 			}
 
-			if (this.microphone == null) {
+			if (this.microphone != null) {
+				if (this.microphone.muted) {
+					Debug.debug ('Microphone is muted');
+					Security.showSettings (SecurityPanel.PRIVACY);
+				} else {
+					Debug.debug ('Microphone is not muted');
+				}
+			} else {
 				Debug.fatal ('No microphone available');
 				this.sendError (Videorec.MSG_NO_MICROPHONE);
 				return;
