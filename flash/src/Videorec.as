@@ -15,6 +15,7 @@ package {
 	import flash.events.SecurityErrorEvent;
 	import flash.events.StatusEvent;
 	import flash.events.TimerEvent;
+	import flash.external.ExternalInterface;
 	import flash.filters.BlurFilter;
 	import flash.filters.BitmapFilterQuality;
 	import flash.filters.GlowFilter;
@@ -58,6 +59,9 @@ package {
 		//--------------------------------------
 		// CLASS CONSTANTS
 		//--------------------------------------
+
+		public static const CALLBACK_ERROR:String = 'error';
+		public static const CALLBACK_FINISH:String = 'finish';
 
 		public static const ERROR_BUTTON_BOLD:Boolean = true;
 		public static const ERROR_BUTTON_COLOR:int = 0x0000FF;
@@ -116,7 +120,7 @@ package {
 		private var buttonPlay:Object;
 		private var buttonRecord:Object;
 		private var buttonStop:Object;
-		private var buttonUpload:Object;
+		private var buttonFinish:Object;
 		private var buttonsLoaded:Boolean = false;
 		private var bwDetect:Red5BwDetect;
 		private var camera:Camera;
@@ -127,13 +131,13 @@ package {
 		private var infoScreen1:Object;
 		private var infoScreen2:Object;
 		private var infoScreen3:Object;
+		private var jsCallback:String = null;
 		private var loaderMovie:Sprite;
 		private var microphone:Microphone;
 		private var multiLoader:MultiLoader;
 		private var recordTime:int = 120;
 		private var recordTimeLeft:int = 0;
 		private var recordTimer:Timer;
-		private var sessionID:String = String (Math.random ()).split ('.')[1];
 		private var stats:Stats;
 		private var statusText:TextField;
 		private var statusTextFormat:TextFormat;
@@ -146,6 +150,7 @@ package {
 		private var streamBufferFull:Boolean = false;
 		private var streamClient:NetStreamClient;
 		private var streamDuration:Number = 0;
+		private var streamFilename:String = String (Math.random ()).split ('.')[1];
 		private var streamStoppedPlayback:Boolean = true;
 		private var timerStatusBold:Boolean = true;
 		private var timerStatusColor:int = 0xFFFFFF;
@@ -166,7 +171,7 @@ package {
 		//--------------------------------------
 
 		public function play ():void {
-			Debug.debug ('Trying to play recorded stream ' + this.sessionID);
+			Debug.debug ('Trying to play recorded stream ' + this.streamFilename);
 			this.setupNetStream ();
 			this.removeInfoScreen ();
 			this.setupLoaderMovie ();
@@ -176,7 +181,7 @@ package {
 
 			var playSuccess:Boolean = false;
 			try {
-				this.stream.play (this.sessionID);
+				this.stream.play (this.streamFilename);
 				playSuccess = true;
 			} catch (error:Error) {
 				//
@@ -202,7 +207,7 @@ package {
 		}
 
 		public function record ():void {
-			Debug.debug ('Tryint to start recording ' + this.sessionID);
+			Debug.debug ('Trying to start recording ' + this.streamFilename);
 			this.setupNetStream ();
 			this.streamDuration = 0;
 			this.removeInfoScreen ();
@@ -210,7 +215,7 @@ package {
 
 			var recordSuccess:Boolean = false;
 			try {
-				this.stream.publish (this.sessionID, 'record');
+				this.stream.publish (this.streamFilename, 'record');
 				recordSuccess = true;
 			} catch (error:Error) {
 				//
@@ -226,7 +231,7 @@ package {
 		}
 
 		public function stop ():void {
-			Debug.debug ('Trying to stop recording or playing ' + this.sessionID);
+			Debug.debug ('Trying to stop recording or playing ' + this.streamFilename);
 			this.removeTimer ();
 			this.removeStopButton ();
 			this.setupLoaderMovie ();
@@ -243,10 +248,11 @@ package {
 			}
 		}
 
-		public function upload ():void {
-			Debug.debug ('Uploading recorded material');
+		public function finish ():void {
+			Debug.debug ('Finished with recorded material');
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_DONE);
+			this.sendCallback (Videorec.CALLBACK_FINISH, {filename: this.streamFilename});
 		}
 
 		//--------------------------------------
@@ -337,9 +343,9 @@ package {
 			this.stop ();
 		}
 
-		private function buttonUploadClickHandler (event:MouseEvent):void {
-			Debug.debug ('Upload button clicked');
-			this.upload ();
+		private function buttonFinishClickHandler (event:MouseEvent):void {
+			Debug.debug ('Finish button clicked');
+			this.finish ();
 		}
 
 		private function recordTimerUpdateHandler (event:TimerEvent):void {
@@ -483,8 +489,8 @@ package {
 				this.buttonStop = new Object ();
 			}
 
-			if (this.buttonUpload == null) {
-				this.buttonUpload = new Object ();
+			if (this.buttonFinish == null) {
+				this.buttonFinish = new Object ();
 			}
 
 			if (this.infoScreen1 == null) {
@@ -516,7 +522,7 @@ package {
 		}
 
 		private function playStart ():void {
-			Debug.debug ('Start playing recorded stream ' + this.sessionID);
+			Debug.debug ('Start playing recorded stream ' + this.streamFilename);
 			this.removeLoaderMovie ();
 			this.setupStopButton ();
 			this.removeVideoFilters ();
@@ -525,13 +531,13 @@ package {
 		}
 
 		private function playStop ():void {
-			Debug.debug ('Stopped playing recorded stream ' + this.sessionID);
+			Debug.debug ('Stopped playing recorded stream ' + this.streamFilename);
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_PLAY);
 		}
 
 		private function recordStart ():void {
-			Debug.debug ('Start recording ' + this.sessionID);
+			Debug.debug ('Start recording ' + this.streamFilename);
 			this.removeLoaderMovie ();
 			this.removeVideoFilters ();
 			this.setupStopButton ();
@@ -549,7 +555,7 @@ package {
 		}
 
 		private function recordStop ():void {
-			Debug.debug ('Stopped recording ' + this.sessionID);
+			Debug.debug ('Stopped recording ' + this.streamFilename);
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_PLAY);
 		}
@@ -558,7 +564,7 @@ package {
 		*	Gets the inserted parameters from the embedded player.
 		*	<h4>Parameters:</h4>
 		*	<ul>
-		*		<li>sessionid – session identification</li>
+		*		<li>filename – the stream's filename</li>
 		*		<li>connectionurl – URL to rtmp-server</li>
 		*		<li>recordtime – time used to record defined in seconds</li>
 		*		<li>recordtimerfont – secord timer font</li>
@@ -570,9 +576,9 @@ package {
 		*		<li>playsrc – play button source</li>
 		*		<li>playx – play button x coordinates</li>
 		*		<li>playy – play button y coordinates</li>
-		*		<li>uploadsrc – upload button source</li>
-		*		<li>uploadx – upload button x coordinates</li>
-		*		<li>uploady – upload button y coordinates</li>
+		*		<li>finishsrc – finish button source</li>
+		*		<li>finishx – finish button x coordinates</li>
+		*		<li>finishy – finish button y coordinates</li>
 		*		<li>stopsrc – stop button source</li>
 		*		<li>stopx – stop button x coordinates</li>
 		*		<li>stopy – stop button y coordinates</li>
@@ -588,9 +594,10 @@ package {
 		*	</ul>
 		*/
 		private function getParams ():void {
-			this.sessionID = LoaderInfoParams.getParam (this.loaderInfo, 'sessionid', this.sessionID);
+			this.streamFilename = LoaderInfoParams.getParam (this.loaderInfo, 'filename', this.streamFilename);
 			this.connectionURL = LoaderInfoParams.getParam (this.loaderInfo, 'connectionurl', this.connectionURL);
 			this.recordTime = LoaderInfoParams.getParam (this.loaderInfo, 'recordtime', this.recordTime);
+			this.jsCallback = LoaderInfoParams.getParam (this.loaderInfo, 'callback', '');
 			this.timerStatusFont = LoaderInfoParams.getParam (this.loaderInfo, 'recordtimerfont', this.timerStatusFont);
 			this.timerStatusSize = LoaderInfoParams.getParam (this.loaderInfo, 'recordtimersize', this.timerStatusSize);
 			this.timerStatusBold = LoaderInfoParams.getParam (this.loaderInfo, 'recordtimerbold', this.timerStatusBold);
@@ -603,9 +610,9 @@ package {
 			this.buttonStop.src = LoaderInfoParams.getParam (this.loaderInfo, 'stopsrc', '');
 			this.buttonStop.x = LoaderInfoParams.getParam (this.loaderInfo, 'stopx', '');
 			this.buttonStop.y = LoaderInfoParams.getParam (this.loaderInfo, 'stopy', '');
-			this.buttonUpload.src = LoaderInfoParams.getParam (this.loaderInfo, 'uploadsrc', '');
-			this.buttonUpload.x = LoaderInfoParams.getParam (this.loaderInfo, 'uploadx', '');
-			this.buttonUpload.y = LoaderInfoParams.getParam (this.loaderInfo, 'uploady', '');
+			this.buttonFinish.src = LoaderInfoParams.getParam (this.loaderInfo, 'finishsrc', '');
+			this.buttonFinish.x = LoaderInfoParams.getParam (this.loaderInfo, 'finishx', '');
+			this.buttonFinish.y = LoaderInfoParams.getParam (this.loaderInfo, 'finishy', '');
 			this.infoScreen1.src = LoaderInfoParams.getParam (this.loaderInfo, 'info1src', '');
 			this.infoScreen1.x = LoaderInfoParams.getParam (this.loaderInfo, 'info1x', '');
 			this.infoScreen1.y = LoaderInfoParams.getParam (this.loaderInfo, 'info1y', '');
@@ -654,11 +661,11 @@ package {
 				Debug.debug ('Stop button already loaded');
 			}
 
-			if (this.buttonUpload.sprite == null) {
-				this.buttonUpload.sprite = new Sprite ();
-				this.multiLoader.add (this.buttonUpload.src, 'upload', this.buttonUpload.sprite);
+			if (this.buttonFinish.sprite == null) {
+				this.buttonFinish.sprite = new Sprite ();
+				this.multiLoader.add (this.buttonFinish.src, 'finish', this.buttonFinish.sprite);
 			} else {
-				Debug.debug ('Upload button already loaded');
+				Debug.debug ('Finish button already loaded');
 			}
 
 			if (this.infoScreen1.sprite == null) {
@@ -697,8 +704,8 @@ package {
 				totalWidth += this.buttonRecord.sprite.width;
 			}
 
-			if (this.buttonUpload.sprite != null && isNaN (parseInt (this.buttonUpload.x)) && this.currentInfoScreenNum > 1) {
-				width1 = this.buttonUpload.sprite.width;
+			if (this.buttonFinish.sprite != null && isNaN (parseInt (this.buttonFinish.x)) && this.currentInfoScreenNum > 1) {
+				width1 = this.buttonFinish.sprite.width;
 				totalWidth += width1;
 			}
 
@@ -738,21 +745,21 @@ package {
 				}
 			}
 
-			if (this.buttonUpload.sprite != null) {
-				if (!isNaN (parseInt (this.buttonUpload.x))) {
-					this.buttonUpload.sprite.x = parseInt (this.buttonUpload.x);
-				} else if (!isNaN (parseInt (this.buttonUpload.y))) {
-					this.buttonUpload.sprite.x = (this.stage.stageWidth - this.buttonUpload.sprite.width) / 2;
+			if (this.buttonFinish.sprite != null) {
+				if (!isNaN (parseInt (this.buttonFinish.x))) {
+					this.buttonFinish.sprite.x = parseInt (this.buttonFinish.x);
+				} else if (!isNaN (parseInt (this.buttonFinish.y))) {
+					this.buttonFinish.sprite.x = (this.stage.stageWidth - this.buttonFinish.sprite.width) / 2;
 				} else {
-					this.buttonUpload.sprite.x = (this.stage.stageWidth - totalWidth) / 2;
+					this.buttonFinish.sprite.x = (this.stage.stageWidth - totalWidth) / 2;
 				}
 
-				if (!isNaN (parseInt (this.buttonUpload.y))) {
-					this.buttonUpload.sprite.y = parseInt (this.buttonUpload.y);
+				if (!isNaN (parseInt (this.buttonFinish.y))) {
+					this.buttonFinish.sprite.y = parseInt (this.buttonFinish.y);
 				} else if (this.currentInfoScreen != null) {
-					this.buttonUpload.sprite.y = this.currentInfoScreen.sprite.y + this.currentInfoScreen.sprite.height;
+					this.buttonFinish.sprite.y = this.currentInfoScreen.sprite.y + this.currentInfoScreen.sprite.height;
 				} else {
-					this.buttonUpload.sprite.y = (this.stage.stageHeight - this.buttonUpload.sprite.height) / 2;
+					this.buttonFinish.sprite.y = (this.stage.stageHeight - this.buttonFinish.sprite.height) / 2;
 				}
 			}
 		}
@@ -829,10 +836,10 @@ package {
 				this.buttonRecord.sprite.removeEventListener (MouseEvent.CLICK, this.buttonRecordClickHandler);
 			}
 
-			if (this.buttonUpload.sprite != null) {
-				this.buttonUpload.sprite.visible = false;
-				this.buttonUpload.sprite.buttonMode = false;
-				this.buttonUpload.sprite.removeEventListener (MouseEvent.CLICK, this.buttonUploadClickHandler);
+			if (this.buttonFinish.sprite != null) {
+				this.buttonFinish.sprite.visible = false;
+				this.buttonFinish.sprite.buttonMode = false;
+				this.buttonFinish.sprite.removeEventListener (MouseEvent.CLICK, this.buttonFinishClickHandler);
 			}
 
 			this.currentInfoScreen = null;
@@ -870,14 +877,14 @@ package {
 				}
 			}
 
-			if (this.buttonUpload.sprite != null) {
-				this.buttonUpload.sprite.visible = (num == 2);
-				this.buttonUpload.sprite.buttonMode = (num == 2);
-				this.buttonUpload.sprite.mouseChildren = false;
+			if (this.buttonFinish.sprite != null) {
+				this.buttonFinish.sprite.visible = (num == 2);
+				this.buttonFinish.sprite.buttonMode = (num == 2);
+				this.buttonFinish.sprite.mouseChildren = false;
 				if (num == 2) {
-					this.buttonUpload.sprite.addEventListener (MouseEvent.CLICK, this.buttonUploadClickHandler, false, 0, false);
+					this.buttonFinish.sprite.addEventListener (MouseEvent.CLICK, this.buttonFinishClickHandler, false, 0, false);
 				} else {
-					this.buttonUpload.sprite.removeEventListener (MouseEvent.CLICK, this.buttonUploadClickHandler);
+					this.buttonFinish.sprite.removeEventListener (MouseEvent.CLICK, this.buttonFinishClickHandler);
 				}
 			}
 
@@ -1031,7 +1038,7 @@ package {
 				this.bwDetect.connection = this.connection;
 			}
 
-			this.connection.connect (this.connectionURL, this.sessionID);
+			this.connection.connect (this.connectionURL, this.streamFilename);
 		}
 
 		private function setupNetStream ():void {
@@ -1126,6 +1133,7 @@ package {
 			this.removeStopButton ();
 			this.sendStatusMessage (message);
 			this.setupStatusButton ();
+			this.sendCallback (Videorec.CALLBACK_ERROR, {message: message});
 			Debug.error (message);
 		}
 
@@ -1207,6 +1215,15 @@ package {
 					this.removeChild (this.statusButton);
 				}
 				this.statusButton.removeEventListener (MouseEvent.CLICK, this.statusButtonClickHandler);
+			}
+		}
+
+		private function sendCallback (type:String, params:Object = null):void {
+			if (!(StringUtil.isEmpty (this.jsCallback))) {
+				Debug.debug ('Calling ' + this.jsCallback + ' as javascript callback with type ' + type);
+				ExternalInterface.call (this.jsCallback, type, params);
+			} else {
+				Debug.debug ('No javascript callback to call to');
 			}
 		}
 

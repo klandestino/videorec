@@ -6,9 +6,30 @@
 		<script type="text/javascript" language="javascript" src="jquery.js"></script>
 		<script type="text/javascript" language="javascript" src="swfobject.js"></script>
 		<script type="text/javascript" language="javascript" src="videorec.js"></script>
-		<!-- Date: 2010-02-02 -->
+		<script type="text/javascript" language="javascript">
+		<!--
+
+			var videorec_id = '';
+
+			function videorec_callback (type, params) {
+				switch (type) {
+					case 'error':
+						alert ("ERROR\n" + params ['message']);
+						break;
+					case 'finish':
+						$('#' + videorec_id).after ('<p>Tack, nu har du videospelat klart och din videofilm heter: ' + params ['filename'] + '</p>');
+						$('#' + videorec_id).hide ();
+						break;
+					case 'started':
+						videorec_id = params ['id'];
+						break;
+				}
+			}
+
+		//-->
+		</script>
 	</head>
 	<body>
-		<div data_videorec="true" data_record_src="images/record.png" data_play_src="images/play.png" data_stop_src="images/stop.png" data_upload_src="images/upload.png">videorec</div>
+		<div data_videorec="true" data_record_src="images/record.png" data_play_src="images/play.png" data_stop_src="images/stop.png" data_finish_src="images/finish.png" data_callback="videorec_callback">videorec</div>
 	</body>
 </html>

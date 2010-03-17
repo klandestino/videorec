@@ -31,18 +31,19 @@ var videorec = {
 		jElm.height (videorec.height);
 
 		var params = {
-			sessionid: jElm.attr ('sessionid'),
+			filename: jElm.attr ('data_filename'),
 			connectionurl: jElm.attr ('data_connection_url'),
-			recordtime: jElm.attr ('recordtime'),
+			recordtime: jElm.attr ('data_recordtime'),
+			callback: jElm.attr ('data_callback'),
 			recordsrc: jElm.attr ('data_record_src'),
 			recordx: jElm.attr ('data_record_x'),
 			recordy: jElm.attr ('data_record_y'),
 			stopsrc: jElm.attr ('data_stop_src'),
 			stopx: jElm.attr ('data_stop_x'),
 			stopy: jElm.attr ('data_stop_y'),
-			uploadsrc: jElm.attr ('data_upload_src'),
-			uploadx: jElm.attr ('data_upload_x'),
-			uploady: jElm.attr ('data_upload_y'),
+			finishsrc: jElm.attr ('data_finish_src'),
+			finishx: jElm.attr ('data_finish_x'),
+			finishy: jElm.attr ('data_finish_y'),
 			playsrc: jElm.attr ('data_play_src'),
 			playx: jElm.attr ('data_play_x'),
 			playy: jElm.attr ('data_play_y'),
@@ -59,6 +60,10 @@ var videorec = {
 
 		jElm.replaceWith ('<div id="' + id + '"></div>');
 		swfobject.embedSWF (videorec.swf, id, videorec.width, videorec.height, '10.0.0', null, params);
+
+		if (params.callback != null) {
+			eval (params.callback + '("started", {id:"' + id + '"});');
+		}
 	}
 }
 
