@@ -17,7 +17,7 @@
 						alert ("ERROR\n" + params ['message']);
 						break;
 					case 'finish':
-						$('#' + videorec_id).after ('<p>Tack, nu har du videospelat klart och din videofilm heter: ' + params ['filename'] + '</p>');
+						$('#' + videorec_id).after ('<p>Thank you, you\'re finished and the name of the recorded material is: ' + params ['filename'] + '</p>');
 						$('#' + videorec_id).hide ();
 						break;
 					case 'started':
@@ -31,5 +31,33 @@
 	</head>
 	<body>
 		<div data_videorec="true" data_record_src="images/record.png" data_play_src="images/play.png" data_stop_src="images/stop.png" data_finish_src="images/finish.png" data_callback="videorec_callback">videorec</div>
+		<!--
+			Videorec attributes:
+				data_filename - sets the stream's filename
+				data_connection_url - connection URL (RMTP)
+				data_recordtime - maximum time to record
+				data_callback - javascript callback (types: error, finish and started - see example above)
+				data_record_src - record button source
+				data_record_x - record button x coordinates
+				data_record_y - record button y coordinates
+				data_stop_src - stop button source
+				data_stop_x - stop button x coordinates
+				data_stop_y - stop button y coordinates
+				data_finish_src - finish button source
+				data_finish_x - finish button x coordinates
+				data_finish_y - finish button y coordinates
+				data_play_src - play button source
+				data_play_x - play button x coordinates
+				data_play_y - record button y coordinates
+				data_info1_src - infoscreen 1 source (intro)
+				data_info1_x - infoscreen 1 x coordinates
+				data_info1_y - infoscreen 1 y coordinates
+				data_info2_src - infoscreen 2 source (finished record; finish, record again or play)
+				data_info2_x - infoscreen 2 x coordinates
+				data_info2_y - infoscreen 2 y coordinates
+				data_info3_src - infoscreen 3 source (finished, nothing more to be done)
+				data_info3_x - infoscreen 3 x coordinates
+				data_info3_y - infoscreen 3 y coordinates
+		-->
 	</body>
 </html>
