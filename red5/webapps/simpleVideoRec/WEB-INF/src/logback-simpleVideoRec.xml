@@ -3,8 +3,8 @@
 	<contextName>simpleVideoRec</contextName>
 	<jmxConfigurator contextName="simpleVideoRec"/>
 	<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-		<File>simpleVideoRec.log</File>
-		<Append>false</Append>
+		<File>log/simpleVideoRec.log</File>
+		<Append>true</Append>
 		<BufferedIO>false</BufferedIO>
 		<ImmediateFlush>true</ImmediateFlush>
 		<layout class="ch.qos.logback.classic.PatternLayout">
@@ -12,10 +12,10 @@
 		</layout>
 	</appender>
 	<root>
-		<level value="DEBUG"/>
+		<level value="INFO"/>
 		<appender-ref ref="FILE"/>
 	</root>
 	<logger name="se.klandestino.red5.applications.simpleVideoRec">
-		<level value="DEBUG"/>
+		<level value="INFO"/>
 	</logger>
 </configuration>
