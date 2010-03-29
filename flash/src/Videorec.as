@@ -43,6 +43,7 @@ package {
 	import se.klandestino.flash.net.MultiLoader;
 	import se.klandestino.flash.utils.LoaderInfoParams;
 	import se.klandestino.flash.utils.StringUtil;
+	import se.klandestino.videorec.R5MC;
 	import se.klandestino.videorec.Red5BwDetect;
 
 	/**
@@ -124,6 +125,7 @@ package {
 		private var buttonsLoaded:Boolean = false;
 		private var bwDetect:Red5BwDetect;
 		private var camera:Camera;
+		private var connected:Boolean = false;
 		private var connection:NetConnection;
 		private var connectionURL:String = 'rtmp://88.80.16.137/simpleVideoRec';
 		private var currentInfoScreen:Object;
@@ -135,6 +137,7 @@ package {
 		private var loaderMovie:Sprite;
 		private var microphone:Microphone;
 		private var multiLoader:MultiLoader;
+		private var missionControl:R5MC;
 		private var recordTime:int = 120;
 		private var recordTimeLeft:int = 0;
 		private var recordTimer:Timer;
@@ -150,7 +153,7 @@ package {
 		private var streamBufferFull:Boolean = false;
 		private var streamClient:NetStreamClient;
 		private var streamDuration:Number = 0;
-		private var streamFilename:String = String (Math.random ()).split ('.')[1];
+		private var streamName:String = String (Math.random ()).split ('.')[1];
 		private var streamStoppedPlayback:Boolean = true;
 		private var timerStatusBold:Boolean = true;
 		private var timerStatusColor:int = 0xFFFFFF;
@@ -171,7 +174,7 @@ package {
 		//--------------------------------------
 
 		public function play ():void {
-			Debug.debug ('Trying to play recorded stream ' + this.streamFilename);
+			Debug.debug ('Trying to play recorded stream ' + this.streamName);
 			this.setupNetStream ();
 			this.removeInfoScreen ();
 			this.setupLoaderMovie ();
@@ -181,7 +184,7 @@ package {
 
 			var playSuccess:Boolean = false;
 			try {
-				this.stream.play (this.streamFilename);
+				this.stream.play (this.streamName);
 				playSuccess = true;
 			} catch (error:Error) {
 				//
@@ -207,7 +210,7 @@ package {
 		}
 
 		public function record ():void {
-			Debug.debug ('Trying to start recording ' + this.streamFilename);
+			Debug.debug ('Trying to start recording ' + this.streamName);
 			this.setupNetStream ();
 			this.streamDuration = 0;
 			this.removeInfoScreen ();
@@ -215,7 +218,7 @@ package {
 
 			var recordSuccess:Boolean = false;
 			try {
-				this.stream.publish (this.streamFilename, 'record');
+				this.stream.publish (this.streamName, 'record');
 				recordSuccess = true;
 			} catch (error:Error) {
 				//
@@ -231,7 +234,7 @@ package {
 		}
 
 		public function stop ():void {
-			Debug.debug ('Trying to stop recording or playing ' + this.streamFilename);
+			Debug.debug ('Trying to stop recording or playing ' + this.streamName);
 			this.removeTimer ();
 			this.removeStopButton ();
 			this.setupLoaderMovie ();
@@ -252,7 +255,7 @@ package {
 			Debug.debug ('Finished with recorded material');
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_DONE);
-			this.sendCallback (Videorec.CALLBACK_FINISH, {filename: this.streamFilename});
+			this.sendCallback (Videorec.CALLBACK_FINISH, {filename: this.streamName});
 		}
 
 		//--------------------------------------
@@ -278,7 +281,7 @@ package {
 				case 'Camera.Unmuted':
 					this.setupCamera ();
 
-					if (this.connection.connected && this.buttonsLoaded && this.bwDetect.detected && !(this.microphone.muted)) {
+					if (this.missionControl.loaded && this.connected && this.buttonsLoaded && this.bwDetect.detected && !(this.microphone.muted)) {
 						this.reset ();
 					}
 					break;
@@ -295,7 +298,7 @@ package {
 				case 'Microphone.Unmuted':
 					this.setupCamera ();
 
-					if (this.connection.connected && this.buttonsLoaded && this.bwDetect.detected && !(this.camera.muted)) {
+					if (this.missionControl.loaded && this.connected && this.buttonsLoaded && this.bwDetect.detected && !(this.camera.muted)) {
 						this.reset ();
 					}
 					break;
@@ -314,7 +317,7 @@ package {
 			this.multiLoader = null;
 
 			this.buttonsLoaded = true;
-			if (this.connection.connected && this.bwDetect.detected && !(this.camera.muted) && !(this.microphone.muted)) {
+			if (this.missionControl.loaded && this.connected && this.bwDetect.detected && !(this.camera.muted) && !(this.microphone.muted)) {
 				this.reset ();
 			}
 		}
@@ -358,19 +361,33 @@ package {
 			this.stop ();
 		}
 
+		private function missionControlCompleteHandler (event:Event):void {
+			Debug.debug ('Mission Control Complete');
+			this.streamName = this.missionControl.stream;
+			this.setupNetConnection ();
+		}
+
+		private function missionControlErrorHandler (event:ErrorEvent):void {
+			Debug.debug ('Mission Control Error');
+			this.sendError (Videorec.MSG_NO_CONNECTION);
+		}
+
 		private function connectionNetStatusHandler (event:NetStatusEvent): void {
 			Debug.debug ('NetConnection status: ' + event.info.code);
 
 			switch (event.info.code) {
 				case 'NetConnection.Connect.Success':
+					this.connected = true;
 					if (this.buttonsLoaded && this.bwDetect.detected && !(this.camera.muted) && !(this.microphone.muted)) {
 						this.reset ();
 					}
 					break;
 				case 'NetConnection.Connect.Failed':
+					this.connected = false;
 					this.sendError (Videorec.MSG_NO_CONNECTION);
 					break;
 				case 'NetConnection.Connect.Closed':
+					this.connected = false;
 					this.sendError (Videorec.MSG_LOST_CONNECTION);
 					break;
 			}
@@ -450,7 +467,7 @@ package {
 		private function bwCheckCompleteHandler (event:Event):void {
 			Debug.debug ('Bandwidth detection complete');
 
-			if (this.connection.connected && this.buttonsLoaded && !(this.camera.muted) && !(this.microphone.muted)) {
+			if (this.buttonsLoaded && !(this.camera.muted) && !(this.microphone.muted)) {
 				this.reset ();
 			}
 		}
@@ -512,7 +529,7 @@ package {
 			this.setupVideoFilters ();
 			this.setupLoaderMovie ();
 			this.setupImages ();
-			this.setupNetConnection ();
+			this.setupMissionControl ();
 
 			// Visible memory statistics
 			/*if (this.stats == null) {
@@ -522,7 +539,7 @@ package {
 		}
 
 		private function playStart ():void {
-			Debug.debug ('Start playing recorded stream ' + this.streamFilename);
+			Debug.debug ('Start playing recorded stream ' + this.streamName);
 			this.removeLoaderMovie ();
 			this.setupStopButton ();
 			this.removeVideoFilters ();
@@ -531,13 +548,13 @@ package {
 		}
 
 		private function playStop ():void {
-			Debug.debug ('Stopped playing recorded stream ' + this.streamFilename);
+			Debug.debug ('Stopped playing recorded stream ' + this.streamName);
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_PLAY);
 		}
 
 		private function recordStart ():void {
-			Debug.debug ('Start recording ' + this.streamFilename);
+			Debug.debug ('Start recording ' + this.streamName);
 			this.removeLoaderMovie ();
 			this.removeVideoFilters ();
 			this.setupStopButton ();
@@ -555,7 +572,7 @@ package {
 		}
 
 		private function recordStop ():void {
-			Debug.debug ('Stopped recording ' + this.streamFilename);
+			Debug.debug ('Stopped recording ' + this.streamName);
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_PLAY);
 		}
@@ -594,7 +611,7 @@ package {
 		*	</ul>
 		*/
 		private function getParams ():void {
-			this.streamFilename = LoaderInfoParams.getParam (this.loaderInfo, 'filename', this.streamFilename);
+			this.streamName = LoaderInfoParams.getParam (this.loaderInfo, 'filename', this.streamName);
 			this.connectionURL = LoaderInfoParams.getParam (this.loaderInfo, 'connectionurl', this.connectionURL);
 			this.recordTime = LoaderInfoParams.getParam (this.loaderInfo, 'recordtime', this.recordTime);
 			this.jsCallback = LoaderInfoParams.getParam (this.loaderInfo, 'callback', '');
@@ -1024,6 +1041,18 @@ package {
 			}
 		}
 
+		private function setupMissionControl ():void {
+			Debug.debug ('Setting up Mission Control');
+
+			if (this.missionControl == null) {
+				this.missionControl = new R5MC ();
+				this.missionControl.addEventListener (Event.COMPLETE, this.missionControlCompleteHandler, false, 0, true);
+				this.missionControl.addEventListener (ErrorEvent.ERROR, this.missionControlErrorHandler, false, 0, true);
+			}
+
+			this.missionControl.load ();
+		}
+
 		private function setupNetConnection ():void {
 			Debug.debug ('Setting up NetConnection');
 
@@ -1038,7 +1067,7 @@ package {
 				this.bwDetect.connection = this.connection;
 			}
 
-			this.connection.connect (this.connectionURL, this.streamFilename);
+			this.connection.connect (this.connectionURL, this.streamName);
 		}
 
 		private function setupNetStream ():void {

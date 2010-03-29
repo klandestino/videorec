@@ -17,7 +17,6 @@
 	<target name="compile">
 		<mkdir dir="${classes.dir}"/>
 		<javac srcdir="${src.dir}" destdir="${classes.dir}" classpathref="classpath"/>
-		<copy file="${src.dir}/logback-simpleVideoRec.xml" todir="${classes.dir}"/>
 	</target>
 	<target name="jar" depends="compile">
 		<mkdir dir="${jar.dir}"/>
@@ -33,9 +32,10 @@
 	<target name="clean-build" depends="clean,jar"/>
 	<target name="main" depends="clean,deploy"/>
 	<target name="install">
-		<scp todir="88.80.16.137:/usr/local/red5/webapps/simpleVideoRec/WEB-INF" port="2206" verbose="true">
+		<scp todir="88.80.16.137:/usr/local/red5/webapps/simpleVideoRec/WEB-INF" port="2206" verbose="false">
 			<fileset dir=".">
 				<include name="${deploy.dir}/${ant.project.name}.jar"/>
+				<include name="${deploy.dir}/logback-simpleVideoRec.xml"/>
 				<include name="web.xml" />
 				<include name="red5-web.xml" />
 				<include name="red5-web.properties" />
