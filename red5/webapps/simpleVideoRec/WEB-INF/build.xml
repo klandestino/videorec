@@ -39,6 +39,7 @@
 				<include name="web.xml" />
 				<include name="red5-web.xml" />
 				<include name="red5-web.properties" />
+				<include name="simpleVideoRec.conf" />
 			</fileset>
 		</scp>
 	</target>

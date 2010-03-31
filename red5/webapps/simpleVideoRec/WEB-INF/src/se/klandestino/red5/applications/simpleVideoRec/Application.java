@@ -11,15 +11,19 @@ import org.slf4j.Logger;
 
 public class Application extends ApplicationAdapter {
 
-	private static String R5MC_CONSUME_URL = "http://red5missioncontrol.metahost.se/record/consume";
+	private static String CONF_FILE = "webapps/simpleVideoRec/WEB-INF/simpleVideoRec.conf";
 
 	private static Logger log = Red5LoggerFactory.getLogger (Application.class, "simpleVideoRec");
 
+	private String publishDir;
+	private int publishTime;
+	private String r5mcConsumeURL;
 	private String streamName;
 
 	public boolean appStart (IScope app) {
 		boolean returnVal = super.appStart (app);
 		log.info ("Application started");
+		this.readConfig ();
 		return returnVal;
 	}
 
@@ -49,12 +53,13 @@ public class Application extends ApplicationAdapter {
 	}
 
 	public String publish () {
+		
 		return "";
 	}
 
-	public boolean checkStreamName (String name) {
+	private boolean checkStreamName (String name) {
 		try {
-			URL url = new URL (R5MC_CONSUME_URL);
+			URL url = new URL (this.r5mcConsumeURL);
 			URLConnection urlconn = url.openConnection ();
 			HttpURLConnection httpconn = (HttpURLConnection) urlconn;
 
@@ -90,6 +95,45 @@ public class Application extends ApplicationAdapter {
 		}
 
 		return false;
+	}
+
+	private void readConfig () {
+		log.info ("Reading config file from " + CONF_FILE);
+
+		try {
+			FileInputStream fstream = new FileInputStream (CONF_FILE);
+			DataInputStream instream = new DataInputStream (fstream);
+			BufferedReader reader = new BufferedReader (new InputStreamReader(instream));
+			String line;
+
+			while ((line = reader.readLine ()) != null) {
+				String [] match = line.split ("\\s*?:\\s*?", 2);
+
+				if (match.length > 1) {
+					match [0] = match [0].trim ();
+					match [1] = match [1].trim ();
+
+					if (match [0].equals ("publishDir")) {
+						log.info ("Found publishDir as: " + match [1]);
+						this.publishDir = match [1];
+					} else if (match [0].equals ("publishTime")) {
+						log.info ("Found publishTime as: " + match [1]);
+						this.publishTime = Integer.parseInt (match [1]);
+					} else if (match [0].equals ("r5mcConsumeURL")) {
+						log.info ("Found r5mcConsumeURL as: " + match [1]);
+						this.r5mcConsumeURL = match [1];
+					} else {
+						log.info ("Some non supported config line: " + match [0] + " | " + match [1]);
+					}
+				} else {
+					log.info ("Syntax error in config line: " + line);
+				}
+			}
+
+			instream.close ();
+		} catch (Exception error) {
+			log.error ("Error while reading config file: " + error.getMessage ());
+		}
 	}
 
 }
