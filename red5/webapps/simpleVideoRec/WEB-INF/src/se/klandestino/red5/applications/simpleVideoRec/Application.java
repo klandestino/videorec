@@ -78,6 +78,13 @@ public class Application extends ApplicationAdapter {
 
 			instream.close ();
 			httpconn.disconnect ();
+
+			if (result.toString ().indexOf ("<red5missioncontrol><consume /></red5missioncontrol>") > -1) {
+				log.info ("R5MC got valid result, accept connection");
+				return true;
+			} else {
+				log.error ("R5MC got no valid result, reject connection");
+			}
 		} catch (IOException error) {
 			log.error ("R5MC Error: " + error);
 		}
