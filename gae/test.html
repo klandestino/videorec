@@ -1,0 +1,32 @@
+<html>
+	<head>
+		<title>Red5 Mission Control Test Suite</title>
+	</head>
+	<body>
+		<h1>Red5 Mission Control Test Suite</h1>
+		<h2>http://{{ domain }}/record</h2>
+		<form action="http://{{ domain }}/record" method="POST">
+			<div>
+				Project:
+				<input type="text" name="project" />
+			</div>
+			<div>
+				Secret:
+				<input type="text" name="secret" />
+			</div>
+			<div>
+				<input type="submit" />
+			</div>
+		</form>
+		<h2>http://{{ domain }}/record/consume</h2>
+		<form action="http://{{ domain }}/record/consume" method="POST">
+			<div>
+				Stream:
+				<input type="text" name="stream" />
+			</div>
+			<div>
+				<input type="submit" />
+			</div>
+		</form>
+	</body>
+</html>
