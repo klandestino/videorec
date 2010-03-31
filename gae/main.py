@@ -19,6 +19,7 @@ class CrossDomainPolicy(webapp.RequestHandler):
 	def get(self):
 		self.response.headers['Content-Type'] = "text/xml; charset=utf-8"
 		self.response.out.write('<?xml version="1.0"?>\r\n');
+		self.response.out.write('<!DOCTYPE cross-domain-policy SYSTEM "http://www.macromedia.com/xml/dtds/cross-domain-policy.dtd">\r\n');
 		self.response.out.write('<cross-domain-policy><allow-access-from domain="*" /></cross-domain-policy>');
 
 	def post(self):
