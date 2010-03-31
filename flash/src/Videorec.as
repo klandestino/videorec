@@ -24,6 +24,7 @@ package {
 	import flash.media.Video;
 	import flash.net.NetConnection;
 	import flash.net.NetStream;
+	import flash.net.Responder;
 	import flash.net.URLRequest;
 	import flash.system.Security;
 	import flash.system.SecurityPanel;
@@ -39,7 +40,7 @@ package {
 	import se.klandestino.flash.debug.loggers.TraceLogger;
 	import se.klandestino.flash.events.MultiLoaderEvent;
 	import se.klandestino.flash.events.NetStreamClientEvent;
-	import se.klandestino.flash.media.NetStreamClient;
+	import se.klandestino.flash.net.NetStreamClient;
 	import se.klandestino.flash.net.MultiLoader;
 	import se.klandestino.flash.utils.LoaderInfoParams;
 	import se.klandestino.flash.utils.StringUtil;
@@ -75,6 +76,8 @@ package {
 		public static const ERROR_MSG_COLOR:int = 0xFF0000;
 		public static const ERROR_MSG_FONT:String = 'Helvetica';
 		public static const ERROR_MSG_SIZE:int = 18;
+
+		public static const FINISH_SERVICE:String = 'publish';
 
 		public static const MSG_NO_CAMERA:String = 'No camera connected or available!';
 		public static const MSG_NO_CONNECTION:String = 'Server connection failed!';
@@ -129,6 +132,7 @@ package {
 		private var connection:NetConnection;
 		private var currentInfoScreen:Object;
 		private var currentInfoScreenNum:int = 0;
+		private var finishResponder:Responder;
 		private var infoScreen1:Object;
 		private var infoScreen2:Object;
 		private var infoScreen3:Object;
@@ -250,10 +254,24 @@ package {
 		}
 
 		public function finish ():void {
-			Debug.debug ('Finished with recorded material');
+			/*Debug.debug ('Calling server to finish up with recorded material');
+
+			this.removeInfoScreen ();
+			this.setupLoaderMovie ();
+
+			if (this.finishResponder == null) {
+				this.finishResponder = new Responder (this.finishCallResultHandler, this.finishCallStatusHandler);
+			}
+
+			this.connection.call (Videorec.FINISH_SERVICE, this.finishResponder);*/
+
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_DONE);
-			this.sendCallback (Videorec.CALLBACK_FINISH, {filename: this.missionControl.stream});
+			this.sendCallback (Videorec.CALLBACK_FINISH, {
+				http: this.missionControl.http,
+				meta: this.missionControl.meta,
+				time_left: this.missionControl.timeLeft
+			});
 		}
 
 		//--------------------------------------
@@ -479,6 +497,53 @@ package {
 			}
 
 			this.init ();
+		}
+
+		private function finishCallResultHandler (result:Object):void {
+			var error:String, url:String, timeLeft:String;
+
+			try {
+				error = result.error;
+			} catch (error:Error) {
+				//
+			}
+
+			try {
+				url = result.url;
+			} catch (error:Error) {
+				//
+			}
+
+			try {
+				timeLeft = result.time_left;
+			} catch (error:Error) {
+				//
+			}
+
+			if (!(StringUtil.isEmpty (error))) {
+				Debug.error ('Finish call returned with error: ' + error);
+				this.removeLoaderMovie ();
+				this.setupInfoScreen (Videorec.SCREEN_PLAY);
+			} else if (!(StringUtil.isEmpty (url) && StringUtil.isEmpty (timeLeft))) {
+				Debug.debug ('Finish call succeded, returning with finish callback');
+				this.removeLoaderMovie ();
+				this.setupInfoScreen (Videorec.SCREEN_DONE);
+				this.sendCallback (Videorec.CALLBACK_FINISH, {url: url, time_left: timeLeft});
+			} else {
+				Debug.debug ('Finish call failed and no known data was returned');
+				this.removeLoaderMovie ();
+				this.setupInfoScreen (Videorec.SCREEN_PLAY);
+			}
+		}
+
+		private function finishCallStatusHandler (status:Object):void {
+			Debug.debug ('Finish call status: ' + status.code);
+
+			if (status.code == 'NetConnection.Call.Failed') {
+				Debug.error ('Finish call returned with error');
+				this.removeLoaderMovie ();
+				this.setupInfoScreen (Videorec.SCREEN_PLAY);
+			}
 		}
 
 		//--------------------------------------
@@ -1060,7 +1125,7 @@ package {
 				this.bwDetect.connection = this.connection;
 			}
 
-			this.connection.connect (this.missionControl.url, this.missionControl.stream);
+			this.connection.connect (this.missionControl.rmtp, this.missionControl.stream);
 		}
 
 		private function setupNetStream ():void {

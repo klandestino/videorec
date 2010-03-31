@@ -85,9 +85,10 @@ class Record(PostRequest):
 			d = [random.choice(string.letters) for x in xrange(32)]
 			recording.onetimecode = "".join(d)
 			recording.put()
+			stream = str(recording.created.strftime('%Y%m%d%H%M%S')) + '_' + str(recording.key()) + '_' + recording.onetimecode
 			self.response.headers['Content-Type'] = "text/xml; charset=utf-8"
 			self.response.out.write('<?xml version="1.0"?>\r\n');
-			self.response.out.write('<red5missioncontrol><record url="rtmp://88.80.16.137/simpleVideoRec" stream="' + str(recording.created.strftime('%Y%m%d%H%M%S')) + '_' + str(recording.key()) + '_' + recording.onetimecode + '" /></red5missioncontrol>');
+			self.response.out.write('<red5missioncontrol><record rmtp="rtmp://88.80.16.137/simpleVideoRec" stream="' + stream + '" http="http://88.80.16.137:5080/simpleVideoRec/streams/' + stream + '.flv" meta="http://88.80.16.137:5080/simpleVideoRec/streams/' + stream + '.flv.meta" time_left="3600" /></red5missioncontrol>');
 
 class RecordConsume(PostRequest):
 	def post(self):

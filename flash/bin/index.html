@@ -17,7 +17,8 @@
 						alert ("ERROR\n" + params ['message']);
 						break;
 					case 'finish':
-						$('#' + videorec_id).after ('<p>Thank you, you\'re finished and the name of the recorded material is: ' + params ['filename'] + '</p>');
+						var date = new Date (params ['time_left']);
+						$('#' + videorec_id).after ('<p>Thank you, you\'ll find the recorded material at:</p><ul><li>' + params ['http'] + '</li><li>with meta: ' + params ['meta'] + '</li><li> until ' + date + '</li></ul>');
 						$('#' + videorec_id).hide ();
 						break;
 					case 'started':

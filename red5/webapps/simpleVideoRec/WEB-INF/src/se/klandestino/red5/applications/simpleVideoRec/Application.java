@@ -2,6 +2,8 @@ package se.klandestino.red5.applications.simpleVideoRec;
 
 import java.net.*;
 import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
 import org.red5.logging.Red5LoggerFactory;
 import org.red5.server.adapter.ApplicationAdapter;
 import org.red5.server.api.IConnection;
@@ -12,11 +14,13 @@ import org.slf4j.Logger;
 public class Application extends ApplicationAdapter {
 
 	private static String CONF_FILE = "webapps/simpleVideoRec/WEB-INF/simpleVideoRec.conf";
+	private static String STREAM_DIR = "webapps/simpleVideoRec/streams";
 
 	private static Logger log = Red5LoggerFactory.getLogger (Application.class, "simpleVideoRec");
 
 	private String publishDir;
 	private int publishTime;
+	private String publishURL;
 	private String r5mcConsumeURL;
 	private String streamName;
 
@@ -42,6 +46,8 @@ public class Application extends ApplicationAdapter {
 			} else {
 				returnVal = false;
 			}
+		} else {
+			returnVal = false;
 		}
 
 		return returnVal;
@@ -52,9 +58,34 @@ public class Application extends ApplicationAdapter {
 		log.info ("Disconnected with " + conn.getClient ().getId ());
 	}
 
-	public String publish () {
-		
-		return "";
+	public Map<String, Object> publish () {
+		Map<String, Object> values = new HashMap<String, Object> ();
+
+		try {
+			File inputFile = new File (STREAM_DIR + "/" + this.streamName + ".flv");
+			File outputFile = new File (this.publishDir + "/" + this.streamName + ".flv");
+
+		    FileReader in = new FileReader (inputFile);
+		    FileWriter out = new FileWriter (outputFile);
+		    int c;
+
+		    while ((c = in.read ()) != -1) {
+				out.write (c);
+			}
+
+		    in.close ();
+		    out.close ();
+
+			log.info ("Copied file " + STREAM_DIR + "/" + this.streamName + ".flv to " + this.publishDir + "/" + this.streamName + ".flv");
+		} catch (IOException error) {
+			log.error ("Error while copying file: " + error);
+			values.put ("error", error);
+			return values;
+		}
+
+		values.put ("url", this.publishURL + "/" + this.streamName + ".flv");
+		values.put ("time_left", (System.currentTimeMillis () / 1000) + this.publishTime);
+		return values;
 	}
 
 	private boolean checkStreamName (String name) {
@@ -119,6 +150,9 @@ public class Application extends ApplicationAdapter {
 					} else if (match [0].equals ("publishTime")) {
 						log.info ("Found publishTime as: " + match [1]);
 						this.publishTime = Integer.parseInt (match [1]);
+					} else if (match [0].equals ("publishURL")) {
+						log.info ("Found publishURL as: " + match [1]);
+						this.publishURL = match [1];
 					} else if (match [0].equals ("r5mcConsumeURL")) {
 						log.info ("Found r5mcConsumeURL as: " + match [1]);
 						this.r5mcConsumeURL = match [1];

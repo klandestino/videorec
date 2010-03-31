@@ -48,9 +48,12 @@ package se.klandestino.videorec {
 		//  PRIVATE VARIABLES
 		//--------------------------------------
 
+		private var _http:String;
 		private var _loaded:Boolean = false;
+		private var _meta:String;
+		private var _rmtp:String;
 		private var _stream:String;
-		private var _url:String;
+		private var _timeLeft:String;
 		private var loader:URLLoader;
 		private var request:URLRequest;
 
@@ -58,16 +61,28 @@ package se.klandestino.videorec {
 		//  GETTER/SETTERS
 		//--------------------------------------
 
+		public function get http ():String {
+			return this._http;
+		}
+
 		public function get loaded ():Boolean {
 			return this._loaded;
+		}
+
+		public function get meta ():String {
+			return this._meta;
+		}
+
+		public function get rmtp ():String {
+			return this._rmtp;
 		}
 
 		public function get stream ():String {
 			return this._stream;
 		}
 
-		public function get url ():String {
-			return this._url;
+		public function get timeLeft ():String {
+			return this._timeLeft;
 		}
 
 		//--------------------------------------
@@ -124,8 +139,20 @@ package se.klandestino.videorec {
 
 			if (xml != null) {
 				if (xml.name ().localName == 'red5missioncontrol' && xml.child ('record').length () > 0) {
-					if (xml.child ('record') [0].attribute ('stream').length () > 0 && xml.child ('record') [0].attribute ('url').length () > 0) {
-						this.success (xml.child ('record') [0].attribute ('stream').toString (), xml.child ('record') [0].attribute ('url').toString ());
+					if (
+						xml.child ('record') [0].attribute ('http').length () > 0 &&
+						xml.child ('record') [0].attribute ('meta').length () > 0 &&
+						xml.child ('record') [0].attribute ('rmtp').length () > 0 &&
+						xml.child ('record') [0].attribute ('stream').length () > 0 &&
+						xml.child ('record') [0].attribute ('time_left').length () > 0
+					) {
+						this._http = xml.child ('record') [0].attribute ('http').toString ();
+						this._meta = xml.child ('record') [0].attribute ('meta').toString ();
+						this._rmtp = xml.child ('record') [0].attribute ('rmtp').toString ();
+						this._stream = xml.child ('record') [0].attribute ('stream').toString ();
+						this._timeLeft = xml.child ('record') [0].attribute ('time_left').toString ();
+						Debug.debug ("Parsed response data:\nhttp: " + this._http + "\nmeta: " + this._meta + "\nrmtp: " + this._rmtp + "\n stream: " + this._stream + "\ntimeLeft: " + this._timeLeft);
+						this.success ();
 					} else {
 						this.error ('The XML had no stream and url defined');
 					}
@@ -165,10 +192,8 @@ package se.klandestino.videorec {
 			this.destroy ();
 		}
 
-		private function success (stream:String, url:String):void {
-			Debug.debug ('Mission Control succeeded with stream: ' + stream + ' and url: ' + url);
-			this._stream = stream;
-			this._url = url;
+		private function success ():void {
+			Debug.debug ('Mission Control succeeded');
 			this._loaded = true;
 			this.dispatchEvent (new Event (Event.COMPLETE));
 			this.destroy ();
