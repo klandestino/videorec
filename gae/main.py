@@ -129,7 +129,7 @@ class Test(webapp.RequestHandler):
 def main():
 	run_wsgi_app(
 		webapp.WSGIApplication([
-			('/crossdomainpolicy.xml', CrossDomainPolicy),
+			('/crossdomain.xml', CrossDomainPolicy),
 			('/record/*', Record),
 			('/record/consume/*', RecordConsume),
 			('/test/*', Test),

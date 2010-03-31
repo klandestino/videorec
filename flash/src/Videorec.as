@@ -127,7 +127,6 @@ package {
 		private var camera:Camera;
 		private var connected:Boolean = false;
 		private var connection:NetConnection;
-		private var connectionURL:String = 'rtmp://88.80.16.137/simpleVideoRec';
 		private var currentInfoScreen:Object;
 		private var currentInfoScreenNum:int = 0;
 		private var infoScreen1:Object;
@@ -153,7 +152,6 @@ package {
 		private var streamBufferFull:Boolean = false;
 		private var streamClient:NetStreamClient;
 		private var streamDuration:Number = 0;
-		private var streamName:String = String (Math.random ()).split ('.')[1];
 		private var streamStoppedPlayback:Boolean = true;
 		private var timerStatusBold:Boolean = true;
 		private var timerStatusColor:int = 0xFFFFFF;
@@ -174,7 +172,7 @@ package {
 		//--------------------------------------
 
 		public function play ():void {
-			Debug.debug ('Trying to play recorded stream ' + this.streamName);
+			Debug.debug ('Trying to play recorded stream ' + this.missionControl.stream);
 			this.setupNetStream ();
 			this.removeInfoScreen ();
 			this.setupLoaderMovie ();
@@ -184,7 +182,7 @@ package {
 
 			var playSuccess:Boolean = false;
 			try {
-				this.stream.play (this.streamName);
+				this.stream.play (this.missionControl.stream);
 				playSuccess = true;
 			} catch (error:Error) {
 				//
@@ -210,7 +208,7 @@ package {
 		}
 
 		public function record ():void {
-			Debug.debug ('Trying to start recording ' + this.streamName);
+			Debug.debug ('Trying to start recording ' + this.missionControl.stream);
 			this.setupNetStream ();
 			this.streamDuration = 0;
 			this.removeInfoScreen ();
@@ -218,7 +216,7 @@ package {
 
 			var recordSuccess:Boolean = false;
 			try {
-				this.stream.publish (this.streamName, 'record');
+				this.stream.publish (this.missionControl.stream, 'record');
 				recordSuccess = true;
 			} catch (error:Error) {
 				//
@@ -234,7 +232,7 @@ package {
 		}
 
 		public function stop ():void {
-			Debug.debug ('Trying to stop recording or playing ' + this.streamName);
+			Debug.debug ('Trying to stop recording or playing ' + this.missionControl.stream);
 			this.removeTimer ();
 			this.removeStopButton ();
 			this.setupLoaderMovie ();
@@ -255,7 +253,7 @@ package {
 			Debug.debug ('Finished with recorded material');
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_DONE);
-			this.sendCallback (Videorec.CALLBACK_FINISH, {filename: this.streamName});
+			this.sendCallback (Videorec.CALLBACK_FINISH, {filename: this.missionControl.stream});
 		}
 
 		//--------------------------------------
@@ -363,7 +361,6 @@ package {
 
 		private function missionControlCompleteHandler (event:Event):void {
 			Debug.debug ('Mission Control Complete');
-			this.streamName = this.missionControl.stream;
 			this.setupNetConnection ();
 		}
 
@@ -539,7 +536,7 @@ package {
 		}
 
 		private function playStart ():void {
-			Debug.debug ('Start playing recorded stream ' + this.streamName);
+			Debug.debug ('Start playing recorded stream ' + this.missionControl.stream);
 			this.removeLoaderMovie ();
 			this.setupStopButton ();
 			this.removeVideoFilters ();
@@ -548,13 +545,13 @@ package {
 		}
 
 		private function playStop ():void {
-			Debug.debug ('Stopped playing recorded stream ' + this.streamName);
+			Debug.debug ('Stopped playing recorded stream ' + this.missionControl.stream);
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_PLAY);
 		}
 
 		private function recordStart ():void {
-			Debug.debug ('Start recording ' + this.streamName);
+			Debug.debug ('Start recording ' + this.missionControl.stream);
 			this.removeLoaderMovie ();
 			this.removeVideoFilters ();
 			this.setupStopButton ();
@@ -572,7 +569,7 @@ package {
 		}
 
 		private function recordStop ():void {
-			Debug.debug ('Stopped recording ' + this.streamName);
+			Debug.debug ('Stopped recording ' + this.missionControl.stream);
 			this.removeLoaderMovie ();
 			this.setupInfoScreen (Videorec.SCREEN_PLAY);
 		}
@@ -581,8 +578,6 @@ package {
 		*	Gets the inserted parameters from the embedded player.
 		*	<h4>Parameters:</h4>
 		*	<ul>
-		*		<li>filename – the stream's filename</li>
-		*		<li>connectionurl – URL to rtmp-server</li>
 		*		<li>recordtime – time used to record defined in seconds</li>
 		*		<li>recordtimerfont – secord timer font</li>
 		*		<li>recordtimersize – secord timer font size</li>
@@ -611,8 +606,6 @@ package {
 		*	</ul>
 		*/
 		private function getParams ():void {
-			this.streamName = LoaderInfoParams.getParam (this.loaderInfo, 'filename', this.streamName);
-			this.connectionURL = LoaderInfoParams.getParam (this.loaderInfo, 'connectionurl', this.connectionURL);
 			this.recordTime = LoaderInfoParams.getParam (this.loaderInfo, 'recordtime', this.recordTime);
 			this.jsCallback = LoaderInfoParams.getParam (this.loaderInfo, 'callback', '');
 			this.timerStatusFont = LoaderInfoParams.getParam (this.loaderInfo, 'recordtimerfont', this.timerStatusFont);
@@ -1067,7 +1060,7 @@ package {
 				this.bwDetect.connection = this.connection;
 			}
 
-			this.connection.connect (this.connectionURL, this.streamName);
+			this.connection.connect (this.missionControl.url, this.missionControl.stream);
 		}
 
 		private function setupNetStream ():void {

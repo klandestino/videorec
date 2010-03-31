@@ -10,6 +10,7 @@ package se.klandestino.videorec {
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
 	import flash.net.URLRequestMethod;
+	import flash.net.URLVariables;
 	import se.klandestino.flash.debug.Debug;
 
 	/**
@@ -27,7 +28,9 @@ package se.klandestino.videorec {
 		// CLASS CONSTANTS
 		//--------------------------------------
 
-		public static const R5MC_SECRET:String = 'videorec';
+		public static const R5MC_NAME:String = 'videorec';
+		public static const R5MC_SECRET:String = 's89dh33qlasdf92sd83_d3@kas^^';
+		//public static const R5MC_URL:String = 'http://localhost:8080/record';
 		public static const R5MC_URL:String = 'http://red5missioncontrol.metahost.se/record';
 
 		//--------------------------------------
@@ -47,6 +50,7 @@ package se.klandestino.videorec {
 
 		private var _loaded:Boolean = false;
 		private var _stream:String;
+		private var _url:String;
 		private var loader:URLLoader;
 		private var request:URLRequest;
 
@@ -62,6 +66,10 @@ package se.klandestino.videorec {
 			return this._stream;
 		}
 
+		public function get url ():String {
+			return this._url;
+		}
+
 		//--------------------------------------
 		//  PUBLIC METHODS
 		//--------------------------------------
@@ -72,6 +80,10 @@ package se.klandestino.videorec {
 
 			this.request = new URLRequest (R5MC_URL);
 			this.request.method = URLRequestMethod.POST;
+			var data:URLVariables = new URLVariables ();
+			data.project = R5MC.R5MC_NAME;
+			data.secret = R5MC.R5MC_SECRET;
+			this.request.data = data;
 			var success:Boolean = false;
 
 			try {
@@ -111,8 +123,12 @@ package se.klandestino.videorec {
 			}
 
 			if (xml != null) {
-				if (xml.name ().localName == 'red5missioncontrol' && xml.attribute ('stream') != null) {
-					this.success (xml.attribute ('stream').toString ());
+				if (xml.name ().localName == 'red5missioncontrol' && xml.child ('record').length () > 0) {
+					if (xml.child ('record') [0].attribute ('stream').length () > 0 && xml.child ('record') [0].attribute ('url').length () > 0) {
+						this.success (xml.child ('record') [0].attribute ('stream').toString (), xml.child ('record') [0].attribute ('url').toString ());
+					} else {
+						this.error ('The XML had no stream and url defined');
+					}
 				} else {
 					if (xml.attribute ('error') != null) {
 						this.error ('Mission Control returned with error: ' + xml.attribute ('error').toString ());
@@ -149,9 +165,10 @@ package se.klandestino.videorec {
 			this.destroy ();
 		}
 
-		private function success (stream:String):void {
-			Debug.debug ('Mission Control succeeded with stream: ' + stream);
+		private function success (stream:String, url:String):void {
+			Debug.debug ('Mission Control succeeded with stream: ' + stream + ' and url: ' + url);
 			this._stream = stream;
+			this._url = url;
 			this._loaded = true;
 			this.dispatchEvent (new Event (Event.COMPLETE));
 			this.destroy ();
