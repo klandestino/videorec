@@ -104,8 +104,8 @@ package {
 		public function Videorec () {
 			super ();
 
-			Debug.addLogger (new TraceLogger ());
-			//Debug.addLogger (new NullLogger ());
+			//Debug.addLogger (new TraceLogger ());
+			Debug.addLogger (new NullLogger ());
 
 			this.stage.scaleMode = StageScaleMode.NO_SCALE;
 			this.stage.align = StageAlign.TOP_LEFT;
