@@ -31,8 +31,8 @@ var videorec = {
 		jElm.height (videorec.height);
 
 		var params = {
-			filename: jElm.attr ('data_filename'),
-			connectionurl: jElm.attr ('data_connection_url'),
+			r5mcproject: jElm.attr ('data_r5mc_project'),
+			r5mcsecret: jElm.attr ('data_r5mc_secret'),
 			recordtime: jElm.attr ('data_recordtime'),
 			callback: jElm.attr ('data_callback'),
 			recordsrc: jElm.attr ('data_record_src'),

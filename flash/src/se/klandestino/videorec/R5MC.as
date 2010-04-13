@@ -28,8 +28,6 @@ package se.klandestino.videorec {
 		// CLASS CONSTANTS
 		//--------------------------------------
 
-		public static const R5MC_NAME:String = 'videorec';
-		public static const R5MC_SECRET:String = 's89dh33qlasdf92sd83_d3@kas^^';
 		//public static const R5MC_URL:String = 'http://localhost:8080/record';
 		public static const R5MC_URL:String = 'http://red5missioncontrol.metahost.se/record';
 
@@ -89,15 +87,15 @@ package se.klandestino.videorec {
 		//  PUBLIC METHODS
 		//--------------------------------------
 
-		public function load ():void {
+		public function load (project:String, secret:String):void {
 			this._loaded = false;
 			this.setupLoader ();
 
 			this.request = new URLRequest (R5MC_URL);
 			this.request.method = URLRequestMethod.POST;
 			var data:URLVariables = new URLVariables ();
-			data.project = R5MC.R5MC_NAME;
-			data.secret = R5MC.R5MC_SECRET;
+			data.project = project;
+			data.secret = secret;
 			this.request.data = data;
 			var success:Boolean = false;
 

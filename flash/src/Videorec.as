@@ -141,6 +141,8 @@ package {
 		private var microphone:Microphone;
 		private var multiLoader:MultiLoader;
 		private var missionControl:R5MC;
+		private var r5mcProject:String = '';
+		private var r5mcSecret:String = '';
 		private var recordTime:int = 120;
 		private var recordTimeLeft:int = 0;
 		private var recordTimer:Timer;
@@ -671,6 +673,8 @@ package {
 		*	</ul>
 		*/
 		private function getParams ():void {
+			this.r5mcProject = LoaderInfoParams.getParam (this.loaderInfo, 'r5mcproject', this.r5mcProject);
+			this.r5mcSecret = LoaderInfoParams.getParam (this.loaderInfo, 'r5mcsecret', this.r5mcSecret);
 			this.recordTime = LoaderInfoParams.getParam (this.loaderInfo, 'recordtime', this.recordTime);
 			this.jsCallback = LoaderInfoParams.getParam (this.loaderInfo, 'callback', '');
 			this.timerStatusFont = LoaderInfoParams.getParam (this.loaderInfo, 'recordtimerfont', this.timerStatusFont);
@@ -1108,7 +1112,7 @@ package {
 				this.missionControl.addEventListener (ErrorEvent.ERROR, this.missionControlErrorHandler, false, 0, true);
 			}
 
-			this.missionControl.load ();
+			this.missionControl.load (this.r5mcProject, this.r5mcSecret);
 		}
 
 		private function setupNetConnection ():void {
