@@ -19,6 +19,9 @@ package {
 	import flash.filters.BlurFilter;
 	import flash.filters.BitmapFilterQuality;
 	import flash.filters.GlowFilter;
+	import flash.geom.Matrix;
+	import flash.geom.Point;
+	import flash.geom.Transform;
 	import flash.media.Camera;
 	import flash.media.Microphone;
 	import flash.media.Video;
@@ -420,15 +423,16 @@ package {
 
 			switch (event.info.code) {
 				case 'NetStream.Buffer.Empty':
+					this.streamBufferFull = false;
+
 					if (this.streamActivePlayback) {
 						if (this.streamStoppedPlayback) {
 							this.streamActivePlayback = false;
 							Debug.debug ('NetStream stopped streaming and buffer completed');
 							this.stop ();
-						} else if (!(this.streamBufferFull)) {
-							this.setupBuffering ();
 						} else {
-							Debug.debug ('NetStream buffer completed but the stream has not stopped yet');
+							this.setupBuffering ();
+							Debug.debug ('NetStream buffer completed but the stream has not stopped yet, setting up buffering');
 						}
 					}
 					break;
@@ -444,9 +448,9 @@ package {
 					break;
 				case 'NetStream.Play.Stop':
 					this.streamStoppedPlayback = true;
-					if (this.streamDuration <= Videorec.STREAM_BUFFER) {
+					if (!this.streamBufferFull) {
 						this.streamActivePlayback = false;
-						Debug.debug ('NetStream duration is shorter than buffer, stopping playback');
+						Debug.debug ('NetStream buffer empty and got stop status from stream, stopping playback');
 						this.stop ();
 					}
 					break;
@@ -1072,6 +1076,9 @@ package {
 				this.video.height = height;
 				this.video.x = (this.stage.stageWidth - this.video.width) / 2;
 				this.video.y = (this.stage.stageHeight - this.video.height) / 2;
+
+				this.video.scaleX = -1;
+				this.video.x += this.video.width;
 
 				Debug.debug ('Video size ' + this.video.width + 'x' + this.video.height + ', position ' + this.video.x + 'x' + this.video.y);
 			}
