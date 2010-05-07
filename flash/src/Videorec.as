@@ -35,6 +35,7 @@ package {
 	import flash.text.TextFieldAutoSize;
 	import flash.text.TextFormat;
 	import flash.utils.Timer;
+	import flash.utils.clearTimeout;
 	import flash.utils.setTimeout;
 	import net.hires.debug.Stats;
 	import org.red5.flash.bwcheck.events.BandwidthDetectEvent;
@@ -67,6 +68,9 @@ package {
 
 		public static const CALLBACK_ERROR:String = 'error';
 		public static const CALLBACK_FINISH:String = 'finish';
+
+		public static const CONNECTION_RETRIES:int = 3;
+		public static const CONNECTION_RETRY_TIMEOUT:int = 200;
 
 		public static const ERROR_BUTTON_BOLD:Boolean = true;
 		public static const ERROR_BUTTON_COLOR:int = 0x0000FF;
@@ -133,6 +137,8 @@ package {
 		private var camera:Camera;
 		private var connected:Boolean = false;
 		private var connection:NetConnection;
+		private var connectionRetries:int = 0;
+		private var connectionRetryTimeout:int;
 		private var currentInfoScreen:Object;
 		private var currentInfoScreenNum:int = 0;
 		private var finishResponder:Responder;
@@ -399,17 +405,22 @@ package {
 			switch (event.info.code) {
 				case 'NetConnection.Connect.Success':
 					this.connected = true;
+					this.connectionRetries = 0;
 					if (this.buttonsLoaded && this.bwDetect.detected && !(this.camera.muted) && !(this.microphone.muted)) {
 						this.reset ();
 					}
 					break;
 				case 'NetConnection.Connect.Failed':
 					this.connected = false;
-					this.sendError (Videorec.MSG_NO_CONNECTION);
+					if (!this.retryNetConnection ()) {
+						this.sendError (Videorec.MSG_NO_CONNECTION);
+					}
 					break;
 				case 'NetConnection.Connect.Closed':
 					this.connected = false;
-					this.sendError (Videorec.MSG_LOST_CONNECTION);
+					if (!this.retryNetConnection ()) {
+						this.sendError (Videorec.MSG_LOST_CONNECTION);
+					}
 					break;
 			}
 		}
@@ -559,6 +570,9 @@ package {
 
 		private function init (event:Event = null):void {
 			Debug.debug ('Initializing');
+
+			clearTimeout (this.connectionRetryTimeout);
+
 			this.stage.removeEventListener (Event.RESIZE, this.init);
 			this.stage.removeEventListener (Event.RESIZE, this.stageResizeHandler);
 			this.stage.addEventListener (Event.RESIZE, this.stageResizeHandler, false, 0, true);
@@ -1142,6 +1156,21 @@ package {
 			}
 
 			this.connection.connect (this.missionControl.rtmp, this.missionControl.stream);
+		}
+
+		private function retryNetConnection ():Boolean {
+			clearTimeout (this.connectionRetryTimeout);
+
+			if (this.connectionRetries < Videorec.CONNECTION_RETRIES) {
+				this.connectionRetries++;
+				Debug.debug ('Retrying to setup up connection, ' + this.connectionRetries + ' of ' + Videorec.CONNECTION_RETRIES);
+				this.setupVideoFilters ();
+				this.setupLoaderMovie ();
+				this.connectionRetryTimeout = setTimeout (this.init, Videorec.CONNECTION_RETRY_TIMEOUT);
+				return true;
+			}
+
+			return false;
 		}
 
 		private function setupNetStream ():void {

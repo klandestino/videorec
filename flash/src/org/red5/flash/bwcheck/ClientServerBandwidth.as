@@ -9,18 +9,18 @@ package org.red5.flash.bwcheck
 		private var res:Responder;
 		private var payload:Array = new Array();
 		
-		private var latency:int = 0;
-		private var cumLatency:int = 1;
-		private var bwTime:int = 0;
+		private var latency:Number = 0;
+		private var cumLatency:Number = 1;
+		private var bwTime:Number = 0;
 		private var count:int = 0;
 		private var sent:int = 0;
-		private var kbitUp:int = 0;
-		private var KBytes:int = 0;
-		private var deltaUp:int = 0;
-		private var deltaTime:int = 0;
-		private var overhead:int = 0;
-		private var pakInterval:int = 0;
-		private var timePassed:int = 0;
+		private var kbitUp:Number = 0;
+		private var KBytes:Number = 0;
+		private var deltaUp:Number = 0;
+		private var deltaTime:Number = 0;
+		private var overhead:Number = 0;
+		private var pakInterval:Number = 0;
+		private var timePassed:Number = 0;
 		private var now:int = 0;
 		
 		private var pakSent:Array = new Array();
