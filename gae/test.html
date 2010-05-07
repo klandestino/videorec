@@ -28,5 +28,29 @@
 				<input type="submit" />
 			</div>
 		</form>
+		<h2>http://{{ domain }}/servernotification/</h2>
+		<form action="http://{{ domain }}/servernotification/" method="POST">
+			<div>
+				<h3>Servers</h3>
+				{% for server in servers %}
+				<li>
+					http prefix: {{ server.httpprefix }}
+					rtmp prefix: {{ server.rtmpprefix }}
+					timestamp: {{ server.timestamp }}
+				</li>
+				{% endfor %}
+			</div>
+			<div>
+				HTTP Prefix:
+				<input type="text" name="httpprefix" />
+			</div>
+			<div>
+				RTMP Prefix:
+				<input type="text" name="rtmpprefix" />
+			</div>
+			<div>
+				<input type="submit" />
+			</div>
+		</form>
 	</body>
 </html>
