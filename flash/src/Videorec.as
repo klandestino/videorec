@@ -171,6 +171,7 @@ package {
 		private var timerStatusTextFormat:TextFormat;
 		private var timerStatusSize:int = 18;
 		private var video:Video;
+		private var videoFlip:Boolean = true;
 
 		//--------------------------------------
 		//  GETTER/SETTERS
@@ -674,6 +675,7 @@ package {
 		*		<li>info3src – info 3 screen source</li>
 		*		<li>info3x – info 3 x coordinates</li>
 		*		<li>info3y – info 3 y coordinates</li>
+		*		<li>flip – if video should be flipped or not</li>
 		*	</ul>
 		*/
 		private function getParams ():void {
@@ -705,6 +707,7 @@ package {
 			this.infoScreen3.src = LoaderInfoParams.getParam (this.loaderInfo, 'info3src', '');
 			this.infoScreen3.x = LoaderInfoParams.getParam (this.loaderInfo, 'info3x', '');
 			this.infoScreen3.y = LoaderInfoParams.getParam (this.loaderInfo, 'info3y', '');
+			this.videoFlip = LoaderInfoParams.getParam (this.loaderInfo, 'flip', this.videoFlip);
 		}
 
 		private function setupVideoFilters ():void {
@@ -1077,8 +1080,10 @@ package {
 				this.video.x = (this.stage.stageWidth - this.video.width) / 2;
 				this.video.y = (this.stage.stageHeight - this.video.height) / 2;
 
-				this.video.scaleX = -1;
-				this.video.x += this.video.width;
+				if (this.videoFlip) {
+					this.video.scaleX = -1;
+					this.video.x += this.video.width;
+				}
 
 				Debug.debug ('Video size ' + this.video.width + 'x' + this.video.height + ', position ' + this.video.x + 'x' + this.video.y);
 			}

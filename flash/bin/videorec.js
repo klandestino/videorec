@@ -53,7 +53,8 @@ var videorec = {
 			info2y: jElm.attr ('data_info2_y'),
 			info3src: jElm.attr ('data_info3_src'),
 			info3x: jElm.attr ('data_info3_x'),
-			info3y: jElm.attr ('data_info3_y')
+			info3y: jElm.attr ('data_info3_y'),
+			flip: jElm.attr ('data_flip')
 		};
 
 		jElm.replaceWith ('<div id="' + id + '"></div>');
