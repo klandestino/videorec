@@ -1,8 +1,6 @@
 var videorec = {
 	pattern: '*[data_videorec]',
 	swf: 'videorec.swf',
-	width: 600,
-	height: 400,
 
 	init: function () {
 		if (typeof (window ['swfobject']) != 'undefined' && typeof (window ['jQuery']) != 'undefined') {
@@ -27,8 +25,8 @@ var videorec = {
 			}
 		}
 
-		jElm.width (videorec.width);
-		jElm.height (videorec.height);
+		var width = jElm.width ();
+		var height = jElm.height ();
 
 		var params = {
 			r5mcproject: jElm.attr ('data_r5mc_project'),
@@ -59,7 +57,7 @@ var videorec = {
 		};
 
 		jElm.replaceWith ('<div id="' + id + '"></div>');
-		swfobject.embedSWF (videorec.swf, id, videorec.width, videorec.height, '10.0.0', null, params);
+		swfobject.embedSWF (videorec.swf, id, width, height, '10.0.0', null, params);
 
 		if (params.callback != null) {
 			eval (params.callback + '("started", {id:"' + id + '"});');

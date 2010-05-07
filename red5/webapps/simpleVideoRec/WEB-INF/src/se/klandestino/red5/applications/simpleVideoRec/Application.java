@@ -8,6 +8,7 @@ import org.red5.logging.Red5LoggerFactory;
 import org.red5.server.adapter.ApplicationAdapter;
 import org.red5.server.api.IConnection;
 import org.red5.server.api.IScope;
+import org.red5.server.api.stream.IBroadcastStream;
 import org.red5.server.api.stream.IServerStream;
 import org.slf4j.Logger;
 
@@ -55,8 +56,27 @@ public class Application extends ApplicationAdapter {
 
 	public void appDisconnect (IConnection conn) {
 		super.appDisconnect (conn);
-		log.info ("Disconnected with " + conn.getClient ().getId ());
+		log.info ("Disconnected with " + conn.getClient ().getId () + " and stream name " + this.streamName);
+
+		/*
+		long streamBytes = 0;
+
+		try {
+			File streamFile = new File (STREAM_DIR + "/" + this.streamName + ".flv");
+			streamBytes = streamFile.length;
+		} catch (IOException error) {
+			log.error ("Error while checking file size: " + error);
+		}
+
+		if (streamBytes > 0) {
+			log.info ("Stream's size is " + streamBytes + " bytes big. Sending it to R5MC");
+		}
+		*/
 	}
+
+	/*public void streamPublishStart (IBroadcastStream stream) {
+		log.info (stream.getPublishedName ());
+	}*/
 
 	public Map<String, Object> publish () {
 		Map<String, Object> values = new HashMap<String, Object> ();

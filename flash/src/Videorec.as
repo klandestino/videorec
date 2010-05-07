@@ -104,8 +104,8 @@ package {
 		public function Videorec () {
 			super ();
 
-			//Debug.addLogger (new TraceLogger ());
-			Debug.addLogger (new NullLogger ());
+			Debug.addLogger (new TraceLogger ());
+			//Debug.addLogger (new NullLogger ());
 
 			this.stage.scaleMode = StageScaleMode.NO_SCALE;
 			this.stage.align = StageAlign.TOP_LEFT;
@@ -1129,7 +1129,7 @@ package {
 				this.bwDetect.connection = this.connection;
 			}
 
-			this.connection.connect (this.missionControl.rmtp, this.missionControl.stream);
+			this.connection.connect (this.missionControl.rtmp, this.missionControl.stream);
 		}
 
 		private function setupNetStream ():void {

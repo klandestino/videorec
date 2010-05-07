@@ -49,7 +49,7 @@ package se.klandestino.videorec {
 		private var _http:String;
 		private var _loaded:Boolean = false;
 		private var _meta:String;
-		private var _rmtp:String;
+		private var _rtmp:String;
 		private var _stream:String;
 		private var _timeLeft:String;
 		private var loader:URLLoader;
@@ -71,8 +71,8 @@ package se.klandestino.videorec {
 			return this._meta;
 		}
 
-		public function get rmtp ():String {
-			return this._rmtp;
+		public function get rtmp ():String {
+			return this._rtmp;
 		}
 
 		public function get stream ():String {
@@ -146,10 +146,10 @@ package se.klandestino.videorec {
 					) {
 						this._http = xml.child ('record') [0].attribute ('http').toString ();
 						this._meta = xml.child ('record') [0].attribute ('meta').toString ();
-						this._rmtp = xml.child ('record') [0].attribute ('rmtp').toString ();
+						this._rtmp = xml.child ('record') [0].attribute ('rmtp').toString ();
 						this._stream = xml.child ('record') [0].attribute ('stream').toString ();
 						this._timeLeft = xml.child ('record') [0].attribute ('time_left').toString ();
-						Debug.debug ("Parsed response data:\nhttp: " + this._http + "\nmeta: " + this._meta + "\nrmtp: " + this._rmtp + "\n stream: " + this._stream + "\ntimeLeft: " + this._timeLeft);
+						Debug.debug ("Parsed response data:\nhttp: " + this._http + "\nmeta: " + this._meta + "\nrtmp: " + this._rtmp + "\n stream: " + this._stream + "\ntimeLeft: " + this._timeLeft);
 						this.success ();
 					} else {
 						this.error ('The XML had no stream and url defined');
