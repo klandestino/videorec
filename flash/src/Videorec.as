@@ -127,6 +127,7 @@ package {
 		[Embed(source="../assets/loader.swf")]
 		private var loaderMovieClass:Class;
 
+		private var bandwidthOverride:int = 0;
 		private var blur:Number = 20;
 		private var buttonPlay:Object;
 		private var buttonRecord:Object;
@@ -642,7 +643,10 @@ package {
 			this.removeVideoFilters ();
 			this.setupStopButton ();
 
-			if (this.bwDetect.detected) {
+			if (this.bandwidthOverride > 0) {
+				Debug.debug ('Setting camera bandwidth to ' + this.bandwidthOverride + ' kbit');
+				this.camera.setQuality (this.bandwidthOverride, 0);
+			} else if (this.bwDetect.detected) {
 				Debug.debug ('Setting camera bandwidth to ' + this.bwDetect.kbitUp + ' kbit');
 				this.camera.setQuality (this.bwDetect.kbitUp, 0);
 			}
@@ -722,6 +726,7 @@ package {
 			this.infoScreen3.x = LoaderInfoParams.getParam (this.loaderInfo, 'info3x', '');
 			this.infoScreen3.y = LoaderInfoParams.getParam (this.loaderInfo, 'info3y', '');
 			this.videoFlip = LoaderInfoParams.getParam (this.loaderInfo, 'flip', this.videoFlip);
+			this.bandwidthOverride = LoaderInfoParams.getParam (this.loaderInfo, 'bandwidth', this.bandwidthOverride);
 		}
 
 		private function setupVideoFilters ():void {
