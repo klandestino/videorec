@@ -11,6 +11,8 @@ package se.klandestino.videorec {
 	import flash.net.URLRequest;
 	import flash.net.URLRequestMethod;
 	import flash.net.URLVariables;
+	import flash.utils.setTimeout;
+	import flash.utils.clearTimeout;
 	import se.klandestino.flash.debug.Debug;
 
 	/**
@@ -30,6 +32,8 @@ package se.klandestino.videorec {
 
 		//public static const R5MC_URL:String = 'http://localhost:8080/record';
 		public static const R5MC_URL:String = 'http://red5missioncontrol.metahost.se/record';
+		public static const NETWORK_RETRIES:int = 3;
+		public static const NETWORK_RETRY_TIMEOUT:int = 200;
 
 		//--------------------------------------
 		//  CONSTRUCTOR
@@ -53,7 +57,11 @@ package se.klandestino.videorec {
 		private var _stream:String;
 		private var _timeLeft:String;
 		private var loader:URLLoader;
+		private var project:String;
 		private var request:URLRequest;
+		private var retries:int = 0;
+		private var retryTimeout:int;
+		private var secret:String;
 
 		//--------------------------------------
 		//  GETTER/SETTERS
@@ -87,9 +95,16 @@ package se.klandestino.videorec {
 		//  PUBLIC METHODS
 		//--------------------------------------
 
-		public function load (project:String, secret:String):void {
+		public function load (project:String, secret:String, resetRetries:Boolean = true):void {
 			this._loaded = false;
 			this.setupLoader ();
+
+			if (resetRetries) {
+				this.retries = 0;
+			}
+
+			this.project = project;
+			this.secret = secret;
 
 			this.request = new URLRequest (R5MC_URL);
 			this.request.method = URLRequestMethod.POST;
@@ -109,6 +124,19 @@ package se.klandestino.videorec {
 			if (!(success)) {
 				this.error ('Failed to load');
 			}
+		}
+
+		public function retry ():Boolean {
+			clearTimeout (this.retryTimeout);
+
+			if (this.retries < R5MC.NETWORK_RETRIES) {
+				this.retries++;
+				Debug.debug ('Retrying to load, ' + this.retries + ' of ' + R5MC.NETWORK_RETRIES);
+				this.retryTimeout = setTimeout (this.load, R5MC.NETWORK_RETRY_TIMEOUT, this.project, this.secret, false);
+				return true;
+			}
+
+			return false;
 		}
 
 		public function destroy ():void {
@@ -168,16 +196,22 @@ package se.klandestino.videorec {
 
 		private function loaderHttpStatusHandler (event:HTTPStatusEvent):void {
 			if (event.status >= 400) {
-				this.error ('Loader got http error ' + event.status);
+				if (!this.retry ()) {
+					this.error ('Loader got http error ' + event.status);
+				}
 			}
 		}
 
 		private function loaderIoErrorHandler (event:IOErrorEvent):void {
-			this.error ('Loader got input/output error');
+			if (!this.retry ()) {
+				this.error ('Loader got input/output error');
+			}
 		}
 
 		private function loaderSecurityErrorHandler (event:SecurityErrorEvent):void {
-			this.error ('Loader got security error');
+			if (!this.retry ()) {
+				this.error ('Loader got security error');
+			}
 		}
 
 		//--------------------------------------
